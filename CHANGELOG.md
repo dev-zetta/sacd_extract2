@@ -7,6 +7,8 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-13
+
 ### Changed
 
 - Move the extractor entry point, bundled getopt implementation, and CMake
@@ -22,6 +24,11 @@ Earlier project history remains available in the
   CUE export.
 - Test the GUI adapter and package ready-to-run Linux and Windows GUI archives
   containing the matching, tested extractor in GitHub Actions.
+- Replace duplicated Linux, Windows, and sanitizer workflow commands with one
+  dependency-checking `scripts/build.sh` entry point shared by developers and
+  GitHub Actions.
+- Reuse artifacts from the successful branch build when publishing a tag, so a
+  release does not rebuild the same commit a second time.
 
 ## [0.4.4] - 2026-08-13
 
@@ -121,4 +128,5 @@ Commits:
 [0.4.1]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dev-zetta/sacd_extract2/compare/c9af7d4...v0.4.0
 [0.4.4]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.3...v0.4.4
-[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.4...HEAD
+[0.5.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.4...v0.5.0
+[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.5.0...HEAD

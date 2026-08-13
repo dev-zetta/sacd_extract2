@@ -10,10 +10,12 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   build:
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
 
@@ -26,24 +28,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends cmake gcc make
 
-      - name: Configure
-        run: >-
-          cmake -S src -B build/release
-          -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build/release --parallel
-
-      - name: Unit and smoke tests
-        run: |
-          ctest --test-dir build/release --output-on-failure
-          build/release/sacd_extract --version
-          build/release/sacd_extract --help
-          if ldd build/release/sacd_extract | grep -q libxml; then
-            echo "Unexpected libxml runtime dependency"
-            exit 1
-          fi
-
       - name: Set up Node.js for GUI
         uses: actions/setup-node@v4
         with:
@@ -51,47 +35,16 @@ jobs:
           cache: npm
           cache-dependency-path: gui/package-lock.json
 
-      - name: Test GUI
-        run: |
-          npm ci --prefix gui
-          npm --prefix gui test
-          npm --prefix gui run check
-
-      - name: Package GUI with tested extractor
-        env:
-          SACD_EXTRACT_BINARY: ${{ github.workspace }}/build/release/sacd_extract
-        run: |
-          npm --prefix gui run package -- --arch=x64
-          gui_package=gui/out/sacd-extract-gui-linux-x64
-          test -x "$gui_package/resources/sacd_extract"
-          install -m 0644 README.md "$gui_package/PROJECT-README.md"
-          install -m 0644 CHANGELOG.md "$gui_package/CHANGELOG.md"
-          install -m 0644 COPYING "$gui_package/COPYING"
-          install -m 0644 gui/LICENSE "$gui_package/GUI-LICENSE"
-          install -m 0644 gui/UPSTREAM.md "$gui_package/GUI-UPSTREAM.md"
-          tar -C gui/out -czf \
-            "$GITHUB_WORKSPACE/build/sacd-extract-gui-linux-x86_64.tar.gz" \
-            sacd-extract-gui-linux-x64
-          cd build
-          sha256sum sacd-extract-gui-linux-x86_64.tar.gz > \
-            sacd-extract-gui-linux-x86_64.tar.gz.sha256
-
-      - name: Package executable
-        run: |
-          mkdir -p build/package/sacd_extract
-          install -m 0755 build/release/sacd_extract build/package/sacd_extract/
-          install -m 0644 README.md CHANGELOG.md COPYING build/package/sacd_extract/
-          tar -C build/package -czf build/sacd_extract-linux-x86_64.tar.gz sacd_extract
-          cd build
-          sha256sum sacd_extract-linux-x86_64.tar.gz > sacd_extract-linux-x86_64.tar.gz.sha256
+      - name: Build, test, and package
+        run: scripts/build.sh --platform linux --build-dir build/release --package
 
       - name: Upload executable
         uses: actions/upload-artifact@v7
         with:
           name: sacd_extract-linux-x86_64
           path: |
-            build/sacd_extract-linux-x86_64.tar.gz
-            build/sacd_extract-linux-x86_64.tar.gz.sha256
+            build/dist/sacd_extract-linux-x86_64.tar.gz
+            build/dist/sacd_extract-linux-x86_64.tar.gz.sha256
           if-no-files-found: error
 
       - name: Upload GUI
@@ -99,11 +52,12 @@ jobs:
         with:
           name: sacd-extract-gui-linux-x86_64
           path: |
-            build/sacd-extract-gui-linux-x86_64.tar.gz
-            build/sacd-extract-gui-linux-x86_64.tar.gz.sha256
+            build/dist/sacd-extract-gui-linux-x86_64.tar.gz
+            build/dist/sacd-extract-gui-linux-x86_64.tar.gz.sha256
           if-no-files-found: error
 
   windows:
+    if: github.ref_type != 'tag'
     runs-on: windows-latest
     timeout-minutes: 35
 
@@ -126,29 +80,6 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-libiconv
 
-      - name: Configure
-        run: >-
-          cmake -S src -B build/release -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DSACD_WINDOWS_STATIC=ON
-
-      - name: Build
-        run: cmake --build build/release --parallel
-
-      - name: Unit and smoke tests
-        run: |
-          ctest --test-dir build/release --output-on-failure
-          build/release/sacd_extract.exe --version
-          build/release/sacd_extract.exe --help
-
-      - name: Verify portable executable
-        run: |
-          objdump -p build/release/sacd_extract.exe > build/windows-imports.txt
-          if grep -Ei 'DLL Name: (libiconv|libintl|libwinpthread|libgcc)' build/windows-imports.txt; then
-            echo "Unexpected MinGW runtime dependency"
-            exit 1
-          fi
-
       - name: Set up Node.js for GUI
         uses: actions/setup-node@v4
         with:
@@ -156,49 +87,16 @@ jobs:
           cache: npm
           cache-dependency-path: gui/package-lock.json
 
-      - name: Test GUI
-        run: |
-          npm ci --prefix gui
-          npm --prefix gui test
-          npm --prefix gui run check
-
-      - name: Package GUI with tested extractor
-        env:
-          SACD_EXTRACT_BINARY: ${{ github.workspace }}/build/release/sacd_extract.exe
-        run: |
-          npm --prefix gui run package -- --arch=x64
-          gui_package=gui/out/sacd-extract-gui-win32-x64
-          test -f "$gui_package/resources/sacd_extract.exe"
-          cp README.md "$gui_package/PROJECT-README.md"
-          cp CHANGELOG.md "$gui_package/CHANGELOG.md"
-          cp COPYING "$gui_package/COPYING"
-          cp gui/LICENSE "$gui_package/GUI-LICENSE"
-          cp gui/UPSTREAM.md "$gui_package/GUI-UPSTREAM.md"
-          cd gui/out
-          cmake -E tar cf \
-            ../../build/sacd-extract-gui-windows-x86_64.zip \
-            --format=zip sacd-extract-gui-win32-x64
-          cd ../..
-          sha256sum build/sacd-extract-gui-windows-x86_64.zip > \
-            build/sacd-extract-gui-windows-x86_64.zip.sha256
-
-      - name: Package executable
-        run: |
-          mkdir -p build/package/sacd_extract
-          cp build/release/sacd_extract.exe build/package/sacd_extract/
-          cp README.md CHANGELOG.md COPYING build/package/sacd_extract/
-          cd build/package
-          cmake -E tar cf ../sacd_extract-windows-x86_64.zip --format=zip sacd_extract
-          cd ..
-          sha256sum sacd_extract-windows-x86_64.zip > sacd_extract-windows-x86_64.zip.sha256
+      - name: Build, test, and package
+        run: scripts/build.sh --platform windows --build-dir build/release --package
 
       - name: Upload executable
         uses: actions/upload-artifact@v7
         with:
           name: sacd_extract-windows-x86_64
           path: |
-            build/sacd_extract-windows-x86_64.zip
-            build/sacd_extract-windows-x86_64.zip.sha256
+            build/dist/sacd_extract-windows-x86_64.zip
+            build/dist/sacd_extract-windows-x86_64.zip.sha256
           if-no-files-found: error
 
       - name: Upload GUI
@@ -206,11 +104,12 @@ jobs:
         with:
           name: sacd-extract-gui-windows-x86_64
           path: |
-            build/sacd-extract-gui-windows-x86_64.zip
-            build/sacd-extract-gui-windows-x86_64.zip.sha256
+            build/dist/sacd-extract-gui-windows-x86_64.zip
+            build/dist/sacd-extract-gui-windows-x86_64.zip.sha256
           if-no-files-found: error
 
   sanitizers:
+    if: github.ref_type != 'tag'
     runs-on: ubuntu-22.04
     timeout-minutes: 15
 
@@ -223,57 +122,48 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends cmake gcc make
 
-      - name: Configure ASan and UBSan
+      - name: Build and test with ASan and UBSan
         run: >-
-          cmake -S src -B build/sanitizers
-          -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
-          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
-
-      - name: Build
-        run: cmake --build build/sanitizers --parallel
-
-      - name: Run sanitizer tests
-        env:
-          ASAN_OPTIONS: detect_leaks=0
-          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
-        run: ctest --test-dir build/sanitizers --output-on-failure
+          scripts/build.sh --platform linux --build-dir build/sanitizers
+          --build-type Debug --sanitizers --skip-gui
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs:
-      - build
-      - windows
-      - sanitizers
     runs-on: ubuntu-22.04
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Download tested executable
-        uses: actions/download-artifact@v8
-        with:
-          name: sacd_extract-linux-x86_64
-          path: build
-
-      - name: Download tested Windows executable
-        uses: actions/download-artifact@v8
-        with:
-          name: sacd_extract-windows-x86_64
-          path: build
-
-      - name: Download tested Linux GUI
-        uses: actions/download-artifact@v8
-        with:
-          name: sacd-extract-gui-linux-x86_64
-          path: build
-
-      - name: Download tested Windows GUI
-        uses: actions/download-artifact@v8
-        with:
-          name: sacd-extract-gui-windows-x86_64
-          path: build
+      - name: Download artifacts tested for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow build.yml \
+            --commit "$GITHUB_SHA" \
+            --event push \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+          if [ -z "$run_id" ]; then
+            echo "No successful branch build exists for $GITHUB_SHA"
+            exit 1
+          fi
+          mkdir -p build
+          for artifact in \
+            sacd_extract-linux-x86_64 \
+            sacd_extract-windows-x86_64 \
+            sacd-extract-gui-linux-x86_64 \
+            sacd-extract-gui-windows-x86_64
+          do
+            gh run download "$run_id" \
+              --repo "$GITHUB_REPOSITORY" \
+              --name "$artifact" \
+              --dir build
+          done
 
       - name: Attach tested binary to GitHub Release
         env:

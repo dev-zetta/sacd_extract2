@@ -38,6 +38,12 @@ function getExtractorCandidates({
     path.join(
       repositoryRoot,
       'build',
+      platform === 'win32' ? 'windows' : 'linux',
+      executableName
+    ),
+    path.join(
+      repositoryRoot,
+      'build',
       'release',
       executableName
     ),

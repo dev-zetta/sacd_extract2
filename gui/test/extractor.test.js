@@ -44,6 +44,9 @@ test('prefers an explicit extractor path', () => {
     )
   );
   assert.ok(
+    candidates.includes('/repository/build/linux/sacd_extract')
+  );
+  assert.ok(
     candidates.includes('/usr/bin/sacd_extract')
   );
 });

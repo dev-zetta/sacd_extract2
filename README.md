@@ -48,37 +48,38 @@ npm --prefix gui start
 ```
 
 Set `SACD_EXTRACT_PATH=/absolute/path/to/sacd_extract` if the executable is not
-under `build/release`, `build/sacd_extract`, the GUI directory, or `PATH`. See
+under `build/linux`, `build/windows`, the legacy build directories, the GUI
+directory, or `PATH`. See
 the [GUI documentation](gui/README.md) for packaging details and retained
 upstream provenance.
 
 ## Build on Linux
 
 Install a C compiler and CMake 3.16 or newer. XML export uses the bundled
-write-only implementation and has no libxml2 dependency.
+write-only implementation and has no libxml2 dependency. Building the GUI also
+requires Node.js 22 or newer and npm.
 For Debian and Ubuntu:
 
 ```bash
 sudo apt-get update
-sudo apt-get install build-essential cmake
+sudo apt-get install build-essential cmake git
 ```
 
-Configure and build out of tree:
+The shared build script detects the current host, checks dependencies, selects
+the appropriate CMake generator and static Windows settings, then builds and
+runs both the C and GUI tests:
 
 ```bash
 git clone https://github.com/dev-zetta/sacd_extract2.git
 cd sacd_extract2
-cmake -S src -B build/sacd_extract \
-  -DCMAKE_BUILD_TYPE=Release
-cmake --build build/sacd_extract --parallel
+scripts/build.sh
 ```
 
-The executable is written to `build/sacd_extract/sacd_extract`. Verify the
-build with:
+The executable is written to `build/linux/sacd_extract`. To also create the CLI
+and ready-to-run GUI release archives under `build/dist`, run:
 
 ```bash
-build/sacd_extract/sacd_extract --version
-build/sacd_extract/sacd_extract --help
+scripts/build.sh --package
 ```
 
 [Tagged releases](https://github.com/dev-zetta/sacd_extract2/releases) provide
@@ -99,19 +100,18 @@ pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
   mingw-w64-x86_64-ninja mingw-w64-x86_64-libiconv
 ```
 
-After restarting the MINGW64 shell if the MSYS2 update requests it, configure,
-build, and test from the repository root:
+After restarting the MINGW64 shell if the MSYS2 update requests it, use the same
+entry point from the repository root:
 
 ```bash
-cmake -S src -B build/windows -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release -DSACD_WINDOWS_STATIC=ON
-cmake --build build/windows --parallel
-ctest --test-dir build/windows --output-on-failure
-build/windows/sacd_extract.exe --version
+scripts/build.sh
+scripts/build.sh --package
 ```
 
-`SACD_WINDOWS_STATIC=ON` is used for distributable builds and folds the
-non-system MinGW, pthread, and iconv libraries into `sacd_extract.exe`.
+The script recognizes the MSYS2 MINGW64 environment and automatically enables
+`SACD_WINDOWS_STATIC`, folding the non-system MinGW, pthread, and iconv
+libraries into `sacd_extract.exe`. Use `scripts/build.sh --help` for explicit
+platform, build-directory, build-type, sanitizer, and GUI options.
 
 ## Usage
 
@@ -272,6 +272,10 @@ or MinGW runtime DLLs, runs the GUI adapter tests and syntax checks, and package
 the GUI with the tested extractor. Tagged GitHub Releases receive both CLI and
 ready-to-run GUI archives with checksums. The workflow also runs the Linux C
 unit suite under ASan and UBSan.
+All three jobs call [`scripts/build.sh`](scripts/build.sh), keeping local and CI
+configuration, testing, portability checks, and packaging on the same path.
+Tag workflows reuse the artifacts already tested for that commit instead of
+performing a second Linux and Windows build.
 
 ## License
 
