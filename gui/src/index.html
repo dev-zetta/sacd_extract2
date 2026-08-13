@@ -19,7 +19,7 @@
           </div>
           <div>
             <h1 class="app-title">SACD Extract</h1>
-            <p class="app-subtitle">Extract DSF or DFF audio from SACD ISO images</p>
+            <p class="app-subtitle">Extract DSD or create playback-ready FLAC from SACD ISO images</p>
           </div>
         </div>
         <div class="power-led" title="Extractor status">
@@ -78,7 +78,7 @@
         <section class="settings-grid">
           <div class="settings-card">
             <div class="section-heading"><span>Output format</span></div>
-            <div class="segmented-control" role="radiogroup" aria-label="Output format">
+            <div class="segmented-control three" role="radiogroup" aria-label="Output format">
               <label class="segment active">
                 <input type="radio" name="format" value="dsf" checked>
                 <span class="mini-input-led"></span>
@@ -89,6 +89,20 @@
                 <span class="mini-input-led"></span>
                 <span><strong>DFF</strong><small>Philips DSD format</small></span>
               </label>
+              <label class="segment">
+                <input type="radio" name="format" value="flac">
+                <span class="mini-input-led"></span>
+                <span><strong>FLAC</strong><small>24-bit PCM</small></span>
+              </label>
+            </div>
+            <div id="flacOptions" class="format-options" hidden>
+              <label for="flacRate">PCM sample rate</label>
+              <select id="flacRate">
+                <option value="88200" selected>88.2 kHz — recommended</option>
+                <option value="176400">176.4 kHz — high resolution</option>
+                <option value="352800">352.8 kHz — maximum</option>
+              </select>
+              <small>DSD→PCM is irreversible; retain DSF/DFF or the ISO for archival use.</small>
             </div>
           </div>
 

@@ -4,8 +4,8 @@ Project repository: [github.com/dev-zetta/sacd_extract2](https://github.com/dev-
 
 `sacd_extract` is a command-line tool for inspecting readable SACD images and
 extracting their audio and metadata on Linux and Windows. It can write stereo or
-multichannel tracks as DSF or DSDIFF, decode DST during extraction, export an
-Edit Master file, and generate CUE/XML metadata.
+multichannel tracks as DSF, DSDIFF, or playback-ready PCM FLAC, decode DST
+during extraction, export an Edit Master file, and generate CUE/XML metadata.
 
 An adopted Tauri 2 desktop interface is included under [`gui/`](gui/README.md).
 Tagged releases provide a Linux AppImage and Windows installer containing the
@@ -19,7 +19,7 @@ readable SACD ISO image. A compatible network source can also be supplied as
 ## Features
 
 - Stereo and multichannel extraction
-- DSF, DSDIFF, DSDIFF Edit Master, and raw ISO output
+- DSF, DSDIFF, 24-bit PCM FLAC, DSDIFF Edit Master, and raw ISO output
 - DST-to-DSD conversion
 - Per-track selection and consecutive-track concatenation
 - CUE and XML metadata export
@@ -33,9 +33,9 @@ readable SACD ISO image. A compatible network source can also be supplied as
 ## Desktop GUI
 
 The GUI selects a local SACD ISO and destination directory, then drives this
-extractor with its current position-independent long options. It supports DSF
-or DSDIFF output, stereo, multichannel, or both areas, optional DST decoding,
-and CUE export.
+extractor with its current position-independent long options. It supports DSF,
+DSDIFF, or FLAC output, stereo, multichannel, or both areas, optional DST
+decoding, selectable FLAC sample rates, and CUE export.
 
 ![sacd_extract2 desktop GUI](docs/images/gui-preview.webp)
 
@@ -88,11 +88,22 @@ Extract selected stereo tracks and convert DST to DSDIFF:
 sacd_extract --tracks 1,5,13 "Album.iso" --stereo --dsdiff --convert-dst
 ```
 
+Create 24-bit/88.2 kHz PCM FLAC files for playback:
+
+```bash
+sacd_extract "Album.iso" --stereo --flac --track-output-dir ./output
+```
+
+Use `--flac-rate 176400` or `--flac-rate 352800` for a higher PCM sample
+rate. FLAC compression is lossless, but conversion from the SACD's 1-bit DSD
+signal to PCM is irreversible. Keep the ISO, DSF, or DFF files if the goal is
+an archival DSD copy.
+
 Options and the positional input may appear in any order, including when the
 `POSIXLY_CORRECT` environment variable is set. The explicit `-i INPUT` and
 `--input INPUT` forms remain supported.
 
-Use `-y DIR` to choose the DSF/DSDIFF output directory and `-o DIR` for raw
+Use `-y DIR` to choose the DSF/DSDIFF/FLAC output directory and `-o DIR` for raw
 ISO or DSDIFF Edit Master output.
 
 ### Common options
@@ -103,6 +114,8 @@ ISO or DSDIFF Edit Master output.
 | `-m`, `--multichannel` | Select the multichannel area |
 | `-s`, `--dsf` | Write individual DSF tracks |
 | `-p`, `--dsdiff` | Write individual DSDIFF tracks |
+| `-f`, `--flac` | Convert DSD64 to 24-bit PCM and write FLAC tracks |
+| `--flac-rate HZ` | Select `88200` (default), `176400`, or `352800` Hz |
 | `-e`, `--edit-master` | Write a DSDIFF Edit Master |
 | `-I`, `--iso` | Write a raw ISO |
 | `-c`, `--convert-dst` | Convert DST-compressed audio to DSD |
@@ -118,11 +131,11 @@ ISO or DSDIFF Edit Master output.
 
 Run `sacd_extract --help` for the complete option list.
 
-For individual DSF or DSDIFF extraction, each generated CUE `FILE` entry names
-the corresponding track file and uses file-relative indices. Edit Master output
-retains the traditional single-file, disc-relative CUE layout. The `WAVE` token
-is retained as the widely supported CUE audio-file convention; strict CDRWIN
-CUE syntax does not define native DSF or DSDIFF file types.
+For individual DSF, DSDIFF, or FLAC extraction, each generated CUE `FILE`
+entry names the corresponding track file and uses file-relative indices. Edit
+Master output retains the traditional single-file, disc-relative CUE layout.
+The `WAVE` token is retained as the widely supported CUE audio-file convention;
+strict CDRWIN CUE syntax does not define native DSF, DSDIFF, or FLAC file types.
 
 ## Configuration
 
@@ -170,9 +183,13 @@ budget.
 Outputs are first written as `*.inprogress.ext` and atomically published when
 the container has been finalized:
 
-- `Track.dsf` — clean output;
-- `Track.partial.dsf` — finalized output containing skipped media;
-- `Track.failed.dsf` — an output that could not be written or finalized.
+- `Track.ext` — clean output;
+- `Track.partial.ext` — finalized output containing skipped media;
+- `Track.failed.ext` — an output that could not be written or finalized.
+
+For FLAC, a hole also resets the FIR history so samples are never filtered
+across missing media. No fabricated PCM is inserted; the finalized FLAC is
+shorter and is visibly marked `.partial.flac`.
 
 The master TOC remains mandatory. Stereo and multichannel areas independently
 fall back to their backup TOC and are omitted if neither copy is usable.
@@ -184,7 +201,9 @@ interrupts extraction.
 ## Output integrity
 
 Extracted files should be decoded or checksummed before the source image is
-discarded. The investigation and fix for the former intermittent 1 MiB DSF
+discarded. DSF and DFF preserve the SACD DSD signal; PCM FLAC does not and
+must not be the only retained copy when DSD-level archival preservation is
+required. The investigation and fix for the former intermittent 1 MiB DSF
 corruption issue is documented in
 [`docs/dsf-output-corruption-investigation.md`](docs/dsf-output-corruption-investigation.md).
 
@@ -195,6 +214,12 @@ See [`COPYING`](COPYING).
 
 The adopted GUI is distributed under the MIT license; see
 [`gui/LICENSE`](gui/LICENSE) and [`gui/UPSTREAM.md`](gui/UPSTREAM.md).
+
+FLAC encoding uses the statically bundled libFLAC 1.5.0 reference library
+under the Xiph BSD license; see
+[`licenses/libFLAC-COPYING.Xiph`](licenses/libFLAC-COPYING.Xiph). The streaming
+DSD decimator and FIR coefficient sets are adapted from GPL-2.0-or-later
+[`dsf2flac`](https://github.com/hank/dsf2flac).
 
 ## Authors
 

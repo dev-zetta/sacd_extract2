@@ -48,6 +48,7 @@ scarletbook_format_handler_t const * iso_format_fn(void)
         0,
         iso_write_frame,
         0,
+        0,
         OUTPUT_FLAG_RAW,
         0
     };

@@ -73,6 +73,7 @@ typedef struct scarletbook_format_handler_t
     int (*startwrite)(scarletbook_output_format_t *ft);
     int (*write)(scarletbook_output_format_t *ft, const uint8_t *buf, size_t len);
     int (*stopwrite)(scarletbook_output_format_t *ft);
+    void (*discontinuity)(scarletbook_output_format_t *ft);
     int         flags;
     size_t      priv_size;
 }
@@ -91,6 +92,7 @@ struct scarletbook_output_format_t
     char                           *working_filename;
 
     int                             channel_count;
+    unsigned int                    flac_sample_rate;
 
     FILE                           *fd;
     uint64_t                        write_length;
@@ -129,6 +131,7 @@ int scarletbook_output_enqueue_raw_sectors(scarletbook_output_t *, int, int, cha
 int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, int area, int track, char *file_path, char *fmt, int dsd_encoded_export, int last_track);
 int scarletbook_output_start(scarletbook_output_t *);
 void scarletbook_output_set_max_read_errors(scarletbook_output_t *, uint32_t);
+void scarletbook_output_set_flac_sample_rate(scarletbook_output_t *, unsigned int);
 int scarletbook_output_result(scarletbook_output_t *);
 void scarletbook_output_interrupt(scarletbook_output_t *);
 int scarletbook_output_is_busy(scarletbook_output_t *);

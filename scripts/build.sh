@@ -138,6 +138,7 @@ require_command sha256sum
 
 if [[ $platform == linux ]]; then
   require_command cc
+  require_command c++
   require_command ldd
   require_command tar
 else
@@ -223,8 +224,8 @@ else
 fi
 
 if [[ $platform == linux ]]; then
-  if ldd "$extractor" | grep -q libxml; then
-    fail 'unexpected libxml runtime dependency'
+  if ldd "$extractor" | grep -Eq 'libxml|libFLAC'; then
+    fail 'unexpected libxml or libFLAC runtime dependency'
   fi
 else
   imports_file="$build_dir/windows-imports.txt"
@@ -267,6 +268,9 @@ cmake -E copy \
   "$repo_root/CHANGELOG.md" \
   "$repo_root/COPYING" \
   "$package_root/sacd_extract"
+cmake -E make_directory "$package_root/sacd_extract/licenses"
+cmake -E copy "$repo_root/licenses/libFLAC-COPYING.Xiph" \
+  "$package_root/sacd_extract/licenses"
 
 if [[ $platform == linux ]]; then
   (

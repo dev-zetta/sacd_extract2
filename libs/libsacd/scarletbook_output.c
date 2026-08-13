@@ -52,6 +52,7 @@
 extern scarletbook_format_handler_t const * dsdiff_format_fn(void);
 extern scarletbook_format_handler_t const * dsdiff_edit_master_format_fn(void);
 extern scarletbook_format_handler_t const * dsf_format_fn(void);
+extern scarletbook_format_handler_t const * flac_format_fn(void);
 extern scarletbook_format_handler_t const * iso_format_fn(void);
 
 typedef const scarletbook_format_handler_t *(*sacd_output_format_fn_t)(void);
@@ -60,6 +61,7 @@ static sacd_output_format_fn_t s_sacd_output_format_fns[] =
     dsdiff_format_fn,
     dsdiff_edit_master_format_fn,
     dsf_format_fn,
+    flac_format_fn,
     iso_format_fn,
     NULL
 };
@@ -99,6 +101,7 @@ struct scarletbook_output_s
 
     scarletbook_handle_t *sb_handle;
     uint32_t max_media_errors;
+    unsigned int flac_sample_rate;
     int result;
     int interrupted;
 };
@@ -106,6 +109,7 @@ struct scarletbook_output_s
 static void init_output_format(scarletbook_output_t *output, scarletbook_output_format_t *ft)
 {
     ft->max_media_errors = output->max_media_errors;
+    ft->flac_sample_rate = output->flac_sample_rate;
     atomic_init(&ft->media_error_count, 0);
     atomic_init(&ft->abort_current, 0);
 }
@@ -665,6 +669,8 @@ static int process_audio_runs(scarletbook_output_format_t *ft, uint8_t *buffer,
         {
             handle->frame.started = 0;
             handle->frame.size = 0;
+            if (ft->handler.discontinuity)
+                ft->handler.discontinuity(ft);
             continue;
         }
         int parser_result = scarletbook_process_frames(handle,
@@ -951,6 +957,7 @@ scarletbook_output_t *scarletbook_output_create(scarletbook_handle_t *handle, st
     output->stats_progress_callback = cb_progress;
     output->fwprintf_callback = cb_fwprintf;
     output->max_media_errors = 10;
+    output->flac_sample_rate = 88200;
     output->result = SACD_OUTPUT_RESULT_CLEAN;
 
     return output;
@@ -992,6 +999,21 @@ void scarletbook_output_set_max_read_errors(scarletbook_output_t *output, uint32
     {
         scarletbook_output_format_t *ft = list_entry(node_ptr, scarletbook_output_format_t, siblings);
         ft->max_media_errors = maximum;
+    }
+}
+
+void scarletbook_output_set_flac_sample_rate(scarletbook_output_t *output,
+                                             unsigned int sample_rate)
+{
+    struct list_head *node_ptr;
+    if (!output)
+        return;
+    output->flac_sample_rate = sample_rate;
+    list_for_each(node_ptr, &output->ripping_queue)
+    {
+        scarletbook_output_format_t *ft =
+            list_entry(node_ptr, scarletbook_output_format_t, siblings);
+        ft->flac_sample_rate = sample_rate;
     }
 }
 

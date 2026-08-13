@@ -34,6 +34,7 @@ struct ExtractionOptions {
     source: String,
     output: String,
     format: String,
+    flac_rate: u32,
     area: String,
     decode_dst: bool,
     export_cuesheet: bool,
@@ -125,11 +126,15 @@ struct Preferences {
 fn build_extractor_arguments(options: &ExtractionOptions) -> Vec<String> {
     let mut arguments = vec!["--input".to_string(), options.source.clone()];
 
-    arguments.push(if options.format == "dff" {
-        "--dsdiff".to_string()
-    } else {
-        "--dsf".to_string()
-    });
+    match options.format.as_str() {
+        "dff" => arguments.push("--dsdiff".to_string()),
+        "flac" => {
+            arguments.push("--flac".to_string());
+            arguments.push("--flac-rate".to_string());
+            arguments.push(options.flac_rate.to_string());
+        }
+        _ => arguments.push("--dsf".to_string()),
+    }
 
     arguments.push("--track-output-dir".to_string());
     arguments.push(options.output.clone());
@@ -205,7 +210,9 @@ fn is_audio_file(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("dsf") || extension.eq_ignore_ascii_case("dff")
+            extension.eq_ignore_ascii_case("dsf")
+                || extension.eq_ignore_ascii_case("dff")
+                || extension.eq_ignore_ascii_case("flac")
         })
 }
 
@@ -396,7 +403,7 @@ fn confirm_overwrite(app: &AppHandle, output: &Path) -> Result<bool, String> {
     let confirmed = app
         .dialog()
         .message(format!(
-            "{} DSF/DFF files already exist in the destination.\n\n\
+            "{} DSF/DFF/FLAC files already exist in the destination.\n\n\
              Remove the existing audio files and create new ones?\n\n{}",
             existing.len(),
             output.display()
@@ -668,6 +675,7 @@ mod tests {
             source: "/music/Album.iso".to_string(),
             output: "/music/output".to_string(),
             format: "dsf".to_string(),
+            flac_rate: 88_200,
             area: "both".to_string(),
             decode_dst: true,
             export_cuesheet: true,
@@ -714,6 +722,30 @@ mod tests {
     }
 
     #[test]
+    fn builds_flac_arguments_with_selected_pcm_rate() {
+        let mut options = options();
+        options.format = "flac".to_string();
+        options.flac_rate = 176_400;
+        options.area = "stereo".to_string();
+        options.export_cuesheet = false;
+
+        assert_eq!(
+            build_extractor_arguments(&options),
+            vec![
+                "--input",
+                "/music/Album.iso",
+                "--flac",
+                "--flac-rate",
+                "176400",
+                "--track-output-dir",
+                "/music/output",
+                "--stereo",
+                "--convert-dst",
+            ]
+        );
+    }
+
+    #[test]
     fn parses_the_extractor_version() {
         assert_eq!(
             parse_extractor_version("sacd_extract client 0.5.0\n"),
@@ -735,6 +767,7 @@ mod tests {
     fn recognizes_output_audio_extensions_case_insensitively() {
         assert!(is_audio_file(Path::new("Track.dsf")));
         assert!(is_audio_file(Path::new("Track.DFF")));
+        assert!(is_audio_file(Path::new("Track.flac")));
         assert!(!is_audio_file(Path::new("Album.iso")));
     }
 }

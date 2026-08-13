@@ -734,6 +734,7 @@ scarletbook_format_handler_t const * dsdiff_format_fn(void)
         dsdiff_create,
         dsdiff_write_frame,
         dsdiff_close,
+        NULL,
         OUTPUT_FLAG_DSD | OUTPUT_FLAG_DST,
         sizeof(dsdiff_handle_t)
     };
@@ -749,6 +750,7 @@ scarletbook_format_handler_t const * dsdiff_edit_master_format_fn(void)
         dsdiff_create_edit_master,
         dsdiff_write_frame,
         dsdiff_close,
+        NULL,
         OUTPUT_FLAG_DSD | OUTPUT_FLAG_DST | OUTPUT_FLAG_EDIT_MASTER,
         sizeof(dsdiff_handle_t)
     };

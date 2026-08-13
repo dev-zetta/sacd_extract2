@@ -66,6 +66,12 @@ const logPanel =
 const logOutput =
   document.getElementById('logOutput');
 
+const flacOptions =
+  document.getElementById('flacOptions');
+
+const flacRate =
+  document.getElementById('flacRate');
+
 
 let extractionRunning = false;
 let extractorReady = false;
@@ -257,6 +263,8 @@ function setRunningUi(running) {
   $$('.segment input').forEach((input) => {
     input.disabled = running;
   });
+
+  flacRate.disabled = running;
 
   document.getElementById('decodeDst').disabled =
     running;
@@ -478,6 +486,9 @@ function getExtractionOptions() {
 
     format:
       selectedFormat?.value || 'dsf',
+
+    flacRate:
+      Number(flacRate.value) || 88200,
 
     area:
       selectedArea?.value || 'stereo',
@@ -783,6 +794,10 @@ function installSegmentHandlers() {
             item.checked
           );
       });
+
+      if (input.name === 'format') {
+        flacOptions.hidden = input.value !== 'flac';
+      }
     });
   });
 }

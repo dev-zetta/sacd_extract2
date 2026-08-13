@@ -119,6 +119,16 @@ static void test_track_file_cue_references_actual_dsf_files(void)
     TEST_ASSERT_NULL(strstr(content, "01 - First.dsf"));
     TEST_ASSERT_NOT_NULL(strstr(content, "FILE \"02 - Second.dsf\" WAVE\n  TRACK 01 AUDIO"));
     TEST_ASSERT_NULL(strstr(content, "TRACK 02 AUDIO"));
+
+    TEST_ASSERT_EQUAL_INT(0, write_track_cue_sheet(&handle, "flac", 0, path, NULL));
+    file = fopen(path, "rb");
+    TEST_ASSERT_NOT_NULL(file);
+    length = fread(content, 1, sizeof(content) - 1, file);
+    fclose(file);
+    unlink(path);
+    content[length] = '\0';
+    TEST_ASSERT_NOT_NULL(strstr(content, "FILE \"01 - First.flac\" WAVE"));
+    TEST_ASSERT_NOT_NULL(strstr(content, "FILE \"02 - Second.flac\" WAVE"));
 }
 
 int main(void)

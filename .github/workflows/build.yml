@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends \
-            cmake gcc make file libssl-dev libwebkit2gtk-4.1-dev \
+            cmake gcc g++ make file libssl-dev libwebkit2gtk-4.1-dev \
             libxdo-dev librsvg2-dev patchelf pkg-config
 
       - name: Set up Rust for Tauri
@@ -141,7 +141,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends cmake gcc make
+          sudo apt-get install --no-install-recommends cmake gcc g++ make
 
       - name: Build and test with ASan and UBSan
         run: >-

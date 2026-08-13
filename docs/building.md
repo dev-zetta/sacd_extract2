@@ -13,10 +13,13 @@ and JavaScript syntax checks.
 
 ## Linux
 
-Install a C compiler, Git, and CMake 3.16 or newer. Building the Tauri GUI also
+Install C and C++ compilers, Git, and CMake 3.16 or newer. Building the Tauri GUI also
 requires Node.js 22 or newer, npm, the stable Rust toolchain, WebKitGTK 4.1,
 librsvg, and `patchelf`. XML export uses the bundled writer and does not require
-libxml2.
+libxml2. CMake downloads the pinned libFLAC 1.5.0 source on the first clean
+configuration and statically links it into the extractor; no system libFLAC
+development or runtime package is required. For an offline build, set CMake's
+`FETCHCONTENT_SOURCE_DIR_FLAC` to an unpacked FLAC 1.5.0 source directory.
 
 On Debian or Ubuntu, install the native toolchain with:
 
@@ -59,7 +62,7 @@ scripts/build.sh
 
 The script selects Ninja and enables `SACD_WINDOWS_STATIC` automatically. The
 resulting `build/windows/sacd_extract.exe` statically includes its non-system
-MinGW, pthread, and iconv dependencies.
+MinGW, pthread, iconv, and libFLAC dependencies.
 
 ## Build options
 
@@ -85,8 +88,8 @@ scripts/build.sh --package
 Artifacts are written under `build/dist`. The build script verifies that the
 Tauri sidecar is byte-identical to the extractor tested earlier in the same
 invocation. Packaging produces a single-file Linux AppImage or a Windows NSIS
-installer, rejects libxml on Linux, rejects non-system MinGW runtime DLLs on
-Windows, and writes SHA-256 checksum files.
+installer, rejects libxml and libFLAC runtime links on Linux, rejects
+non-system MinGW runtime DLLs on Windows, and writes SHA-256 checksum files.
 
 [Tagged releases](https://github.com/dev-zetta/sacd_extract2/releases) provide
 ready-to-run Linux and Windows x86-64 CLI packages, AppImages, and installers.

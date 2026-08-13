@@ -7,6 +7,24 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-14
+
+### Added
+
+- Add direct 24-bit PCM FLAC output at 88.2, 176.4, or 352.8 kHz using a
+  streaming DSD64 decimator adapted from `dsf2flac` and the reference libFLAC
+  encoder.
+- Add FLAC output and sample-rate selection to the Tauri GUI, plus unit tests
+  for streaming conversion, discontinuity reset, FLAC container output, and
+  GUI argument generation.
+
+### Changed
+
+- Fetch and statically link pinned libFLAC 1.5.0 in Linux and Windows builds,
+  avoiding an FFmpeg or end-user libFLAC runtime dependency.
+- Treat FLAC as a playback derivative rather than an archival substitute for
+  the source DSD, and document partial-output behavior at damaged sectors.
+
 ## [0.7.0] - 2026-08-13
 
 ### Changed
@@ -161,4 +179,5 @@ Commits:
 [0.5.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.4...v0.5.0
 [0.6.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.5.0...v0.6.0
 [0.7.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.6.0...v0.7.0
-[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.7.0...HEAD
+[0.8.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.7.0...v0.8.0
+[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.8.0...HEAD

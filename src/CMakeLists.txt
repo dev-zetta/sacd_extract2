@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(sacd_extract VERSION 0.7.0 LANGUAGES C)
+project(sacd_extract VERSION 0.8.0 LANGUAGES C CXX)
 
 include(CTest)
 
@@ -71,6 +71,34 @@ include_directories("../libs/libsacd")
 
 
 find_package(Threads REQUIRED)
+
+# Build the reference FLAC encoder into sacd_extract.  Only libFLAC is built:
+# no command-line programs, C++ wrapper, Ogg support, docs, or upstream tests.
+# The release executable therefore has no end-user libFLAC dependency.
+include(FetchContent)
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+set(_SACD_BUILD_TESTING "${BUILD_TESTING}")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+set(BUILD_CXXLIBS OFF CACHE BOOL "Build libFLAC++" FORCE)
+set(BUILD_PROGRAMS OFF CACHE BOOL "Build FLAC programs" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Build FLAC examples" FORCE)
+set(BUILD_DOCS OFF CACHE BOOL "Build FLAC documentation" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Build dependency tests" FORCE)
+set(INSTALL_MANPAGES OFF CACHE BOOL "Install FLAC man pages" FORCE)
+set(INSTALL_PKGCONFIG_MODULES OFF CACHE BOOL "Install FLAC pkg-config files" FORCE)
+set(INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "Install FLAC CMake files" FORCE)
+set(WITH_OGG OFF CACHE BOOL "Build Ogg FLAC support" FORCE)
+set(ENABLE_MULTITHREADING OFF CACHE BOOL "Build threaded FLAC encoder" FORCE)
+FetchContent_Declare(
+    flac
+    URL https://downloads.xiph.org/releases/flac/flac-1.5.0.tar.xz
+    URL_HASH SHA256=f2c1c76592a82ffff8413ba3c4a1299b6c7ab06c734dee03fd88630485c2b920
+)
+FetchContent_MakeAvailable(flac)
+set(BUILD_TESTING "${_SACD_BUILD_TESTING}" CACHE BOOL "Build sacd_extract tests" FORCE)
+unset(_SACD_BUILD_TESTING)
 
 # Extra flags for GCC
 STRING(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
@@ -174,6 +202,7 @@ if(WIN32)
         _UNICODE)
     target_link_libraries(sacd_extract_core PUBLIC
         Threads::Threads
+        FLAC::FLAC
         Iconv::Iconv
         ws2_32)
     # main.c uses wmain so paths and arguments remain Unicode on Windows.
@@ -185,10 +214,10 @@ if(WIN32)
     endif()
 elseif(APPLE)
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(sacd_extract_core PUBLIC -liconv)
+    target_link_libraries(sacd_extract_core PUBLIC -liconv FLAC::FLAC)
 else()
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(sacd_extract_core PUBLIC Threads::Threads)
+    target_link_libraries(sacd_extract_core PUBLIC Threads::Threads FLAC::FLAC)
 endif()
 
 if(BUILD_TESTING)

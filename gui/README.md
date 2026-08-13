@@ -1,8 +1,8 @@
 # sacd-extract-gui
 
 A Tauri 2 desktop interface for the `sacd_extract2` command-line extractor.
-It supports DSF and DSDIFF output, stereo and multichannel areas, DST decoding,
-and CUE export on Linux and Windows.
+It supports DSF, DSDIFF, and 24-bit PCM FLAC output, stereo and multichannel
+areas, DST decoding, and CUE export on Linux and Windows.
 
 The GUI is built and tested together with the matching extractor by this
 repository's GitHub Actions workflow. Tagged releases publish a Linux AppImage

@@ -377,6 +377,7 @@ scarletbook_format_handler_t const * dsf_format_fn(void)
         dsf_create,
         dsf_write_frame,
         dsf_close,
+        NULL,
         OUTPUT_FLAG_DSD,
         sizeof(dsf_handle_t)
     };

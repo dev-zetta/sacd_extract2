@@ -15,6 +15,8 @@ add_sacd_unit_test(test_frame_recovery test_frame_recovery.c)
 add_sacd_unit_test(test_cuesheet test_cuesheet.c)
 add_sacd_unit_test(test_toc_recovery test_toc_recovery.c)
 add_sacd_unit_test(test_xml_writer test_xml_writer.c)
+add_sacd_unit_test(test_dsd_pcm test_dsd_pcm.c)
+add_sacd_unit_test(test_flac_output test_flac_output.c)
 
 add_test(NAME test_cli_config_precedence
          COMMAND ${CMAKE_COMMAND}
@@ -51,4 +53,12 @@ if(SACD_TEST_ISO)
                      -DWORK=${CMAKE_CURRENT_BINARY_DIR}/integration-track
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/run_track_integration.cmake)
     set_tests_properties(integration_selected_track PROPERTIES LABELS integration TIMEOUT 900)
+
+    add_test(NAME integration_selected_track_flac
+             COMMAND ${CMAKE_COMMAND}
+                     -DEXTRACTOR=$<TARGET_FILE:sacd_extract>
+                     -DISO=${SACD_TEST_ISO}
+                     -DWORK=${CMAKE_CURRENT_BINARY_DIR}/integration-flac
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/run_flac_integration.cmake)
+    set_tests_properties(integration_selected_track_flac PROPERTIES LABELS integration TIMEOUT 900)
 endif()

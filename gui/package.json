@@ -1,8 +1,8 @@
 {
   "name": "sacd-extract-gui",
   "productName": "sacd-extract-gui",
-  "version": "0.7.0",
-  "description": "Desktop interface for extracting DSF and DSDIFF audio from SACD ISO images",
+  "version": "0.8.0",
+  "description": "Desktop interface for extracting DSD and FLAC audio from SACD ISO images",
   "private": true,
   "scripts": {
     "start": "tauri dev",
@@ -16,6 +16,7 @@
     "dsd",
     "dsf",
     "dsdiff",
+    "flac",
     "audio-extraction"
   ],
   "author": {

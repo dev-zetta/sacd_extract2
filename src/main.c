@@ -70,6 +70,7 @@ static struct opts_s
     int            two_channel;
     int            multi_channel;
     int            output_dsf;
+    int            output_flac;
     int            output_dsdiff_em;
     int            output_dsdiff;
     int            output_iso;
@@ -90,6 +91,7 @@ static struct opts_s
     char           *log_file;
     log_module_level_t log_level;
     uint32_t       max_read_errors;
+    unsigned int   flac_sample_rate;
     int            cli_logging_set;
     int            cli_log_file_set;
     int            cli_log_level_set;
@@ -106,6 +108,7 @@ enum
     OPT_NO_LOG,
     OPT_LOG_FILE,
     OPT_LOG_LEVEL,
+    OPT_FLAC_RATE,
     OPT_HELP
 };
 
@@ -128,17 +131,19 @@ static int parse_options(int argc, char *argv[])
         "  -e, --edit-master               : output as Philips DSDIFF (Edit Master) file\n"
         "  -p, --dsdiff                    : output as Philips DSDIFF file\n"
         "  -s, --dsf                       : output as Sony DSF file\n"
+        "  -f, --flac                      : output as 24-bit PCM FLAC (DSD conversion)\n"
+        "      --flac-rate HZ              : FLAC rate: 88200 (default), 176400, or 352800\n"
         "  -z, --no-dsf-padding            : Do not zero pad DSF (cannot be used with -t)\n"
         "  -t, --tracks LIST               : only output selected track(s) (ex. --tracks 1,5,13)\n"
         "  -k, --concatenate               : concatenate consecutive selected track(s) (ex. -k -t 2,3,4)\n"
         "  -I, --iso                       : output as RAW ISO\n"
 #ifndef SECTOR_LIMIT
-        "  -w, --parallel                  : Concurrent ISO+DSF/DSDIFF processing mode\n"
+        "  -w, --parallel                  : Concurrent ISO+audio processing mode\n"
 #endif
         "  -c, --convert-dst               : convert DST to DSD\n"
         "  -C, --cue                       : Export CUE and XML metadata\n"
         "  -o, --output-dir DIR            : Output directory for ISO or DSDIFF Edit Master\n"
-        "  -y, --track-output-dir DIR      : Output directory for DSF or DSDIFF\n"
+        "  -y, --track-output-dir DIR      : Output directory for DSF, DSDIFF, or FLAC\n"
         "  -P, --info                      : display disc and track information\n"
         "  -A, --include-artist            : add artist name to the album folder\n"
         "  -a, --include-performer         : add performer name to track filenames\n"
@@ -162,9 +167,9 @@ static int parse_options(int argc, char *argv[])
     static const char usage_text[] =
         "Usage: %s [-2|--stereo] [-m|--multichannel] [-p|--dsdiff]\n"
 #ifdef SECTOR_LIMIT
-        "        [-e|--edit-master] [-s|--dsf] [-I|--iso]\n"
+        "        [-e|--edit-master] [-s|--dsf] [-f|--flac] [-I|--iso]\n"
 #else
-        "        [-e|--edit-master] [-s|--dsf] [-I|--iso] [-w|--parallel]\n"
+        "        [-e|--edit-master] [-s|--dsf] [-f|--flac] [-I|--iso] [-w|--parallel]\n"
 #endif
         "        [-c|--convert-dst] [-C|--cue] [-i|--input INPUT] [-o|--output-dir DIR]\n"
         "        [-y|--track-output-dir DIR] [-P|--info] [INPUT]\n"
@@ -172,9 +177,9 @@ static int parse_options(int argc, char *argv[])
 
 
 #ifdef SECTOR_LIMIT
-    static const char options_string[] = "-2mepszt:kIcCo:y:PAabvi:?u";
+    static const char options_string[] = "-2mepsfzt:kIcCo:y:PAabvi:?u";
 #else
-    static const char options_string[] = "-2mepszt:kIwcCo:y:PAabvi:?u";
+    static const char options_string[] = "-2mepsfzt:kIwcCo:y:PAabvi:?u";
 #endif
 
     static const struct option options_table[] = {
@@ -188,6 +193,7 @@ static int parse_options(int argc, char *argv[])
         {"dsdiff", no_argument, NULL, 'p'},
         {"output-dsf", no_argument, NULL, 's'},
         {"dsf", no_argument, NULL, 's'},
+        {"flac", no_argument, NULL, 'f'},
         {"dsf-nopad", no_argument, NULL, 'z'},
         {"no-dsf-padding", no_argument, NULL, 'z'},
         {"select-track",required_argument, NULL,'t'},
@@ -220,6 +226,7 @@ static int parse_options(int argc, char *argv[])
         {"no-log", no_argument, NULL, OPT_NO_LOG},
         {"log-file", required_argument, NULL, OPT_LOG_FILE},
         {"log-level", required_argument, NULL, OPT_LOG_LEVEL},
+        {"flac-rate", required_argument, NULL, OPT_FLAC_RATE},
         {"help", no_argument, NULL, OPT_HELP},
         {"usage", no_argument, NULL, 'u'},
         {NULL, 0, NULL, 0}};
@@ -287,6 +294,22 @@ static int parse_options(int argc, char *argv[])
             opts.cli_log_level_set = 1;
             break;
         }
+        case OPT_FLAC_RATE:
+        {
+            char *end = NULL;
+            unsigned long value;
+            errno = 0;
+            value = strtoul(optarg, &end, 10);
+            if (errno != 0 || !end || *end != '\0' ||
+                (value != 88200 && value != 176400 && value != 352800))
+            {
+                fprintf(stderr, "Invalid --flac-rate value: %s\n", optarg);
+                free(program_name);
+                return -1;
+            }
+            opts.flac_sample_rate = (unsigned int)value;
+            break;
+        }
         case '2':
             opts.two_channel = 1;
             break;
@@ -314,6 +337,9 @@ static int parse_options(int argc, char *argv[])
             // if(opts.two_channel == 0 && opts.multi_channel == 0)
             //     opts.two_channel = 1;
 
+            break;
+        case 'f':
+            opts.output_flac = 1;
             break;
         case 't':
             {
@@ -576,6 +602,7 @@ static void init(void)
     opts.two_channel        = 0;
     opts.multi_channel      = 0;
     opts.output_dsf         = 0;
+    opts.output_flac        = 0;
     opts.output_iso         = 0;
     opts.output_dsdiff      = 0;
     opts.output_dsdiff_em   = 0;
@@ -596,6 +623,7 @@ static void init(void)
     opts.log_file           = NULL;
     opts.log_level          = LOG_INFO;
     opts.max_read_errors    = 10;
+    opts.flac_sample_rate   = 88200;
     opts.cli_logging_set = opts.cli_log_file_set = 0;
     opts.cli_log_level_set = opts.cli_max_read_errors_set = 0;
     opts.id3_tag_mode       = 3; // default id3v2.3 ; ISO_8859_1 encoding // id3v2.4 tag and UTF8 encoding
@@ -852,6 +880,7 @@ void show_options()
     if(opts.two_channel != 0)fwprintf(stdout, L"\tAsked two channels -2 \n");
     if(opts.multi_channel != 0)fwprintf(stdout, L"\tAsked multi channels -m \n");
     if(opts.output_dsf != 0)fwprintf(stdout, L"\tAsked dsf -s \n");
+    if(opts.output_flac != 0)fwprintf(stdout, L"\tAsked FLAC -f (%u Hz, 24-bit PCM) \n", opts.flac_sample_rate);
     if(opts.output_dsdiff != 0)fwprintf(stdout, L"\tAsked dsddif -p \n");
     if(opts.output_dsdiff_em != 0)fwprintf(stdout, L"\tAsked dsf -e \n");
     if(opts.dsf_nopad  != 0)fwprintf(stdout, L"\tAsked dsf nopad -z \n");
@@ -1093,7 +1122,7 @@ int main(int argc, char *argv[])
         read_config();
         if (opts.logging < 0)
         {
-            opts.logging = opts.output_dsf || opts.output_dsdiff || opts.output_dsdiff_em ||
+            opts.logging = opts.output_dsf || opts.output_flac || opts.output_dsdiff || opts.output_dsdiff_em ||
                            opts.output_iso || opts.export_cue_sheet;
         }
         init_logging(opts.logging, opts.log_level, opts.log_file);
@@ -1482,7 +1511,7 @@ Err_close:                  scarletbook_close(handle);
                 }
 
 
-                if (opts.output_dsf || opts.output_dsdiff || opts.output_dsdiff_em || opts.export_cue_sheet)
+                if (opts.output_dsf || opts.output_flac || opts.output_dsdiff || opts.output_dsdiff_em || opts.export_cue_sheet)
                 {
 
                     while (opts.two_channel + opts.multi_channel > 0)
@@ -1511,7 +1540,7 @@ Err_close:                  scarletbook_close(handle);
                         {
                             free(album_filename);
                             free(output_dir);
-                            LOG(lm_main, LOG_ERROR, ("ERROR in main: after create_path_output() for dsf/dff/dff_em"));
+                            LOG(lm_main, LOG_ERROR, ("ERROR in main: after create_path_output() for audio output"));
 
                             goto Err_close;
                         }
@@ -1519,11 +1548,15 @@ Err_close:                  scarletbook_close(handle);
                         LOG(lm_main, LOG_INFO,
                             ("session input=%s output=%s area=%s channels=%u encoding=%s destination=%s max_media_errors=%u retries=%u",
                              opts.input_device,
-                             opts.output_dsf ? "dsf" : (opts.output_dsdiff_em ? "dsdiff-edit-master" : (opts.output_dsdiff ? "dsdiff" : "cue")),
+                             opts.output_dsf ? "dsf" : (opts.output_flac ? "flac" : (opts.output_dsdiff_em ? "dsdiff-edit-master" : (opts.output_dsdiff ? "dsdiff" : "cue"))),
                              opts.multi_channel ? "multichannel" : "stereo",
                              handle->area[area_idx].area_toc->channel_count,
                              handle->area[area_idx].area_toc->frame_format == FRAME_FORMAT_DST ? "DST" : "DSD",
                              output_dir_dsd, opts.max_read_errors, SACD_SECTOR_RETRIES));
+                        if (opts.output_flac)
+                            LOG(lm_main, LOG_INFO,
+                                ("flac conversion sample_rate=%u bits=24 scale_db=4 dither=tpdf encoder=libFLAC-1.5.0",
+                                 opts.flac_sample_rate));
 
                         if (opts.output_dsdiff_em)
                         {
@@ -1574,6 +1607,9 @@ Err_close:                  scarletbook_close(handle);
                             if (!opts.concatenate && opts.output_dsf)
                                 rez_cuesheet = write_track_cue_sheet(handle, "dsf", area_idx, cue_file_path_unique,
                                                                      opts.select_tracks ? opts.selected_tracks : NULL);
+                            else if (!opts.concatenate && opts.output_flac)
+                                rez_cuesheet = write_track_cue_sheet(handle, "flac", area_idx, cue_file_path_unique,
+                                                                     opts.select_tracks ? opts.selected_tracks : NULL);
                             else if (!opts.concatenate && opts.output_dsdiff && !opts.output_dsdiff_em)
                                 rez_cuesheet = write_track_cue_sheet(handle, "dff", area_idx, cue_file_path_unique,
                                                                      opts.select_tracks ? opts.selected_tracks : NULL);
@@ -1592,13 +1628,15 @@ Err_close:                  scarletbook_close(handle);
 
                         }
 
-                        if (opts.output_dsf || opts.output_dsdiff)
+                        if (opts.output_dsf || opts.output_flac || opts.output_dsdiff)
                         {
 
                             wchar_t *wide_folder;
                             CHAR2WCHAR(wide_folder, output_dir_dsd);
                             if (opts.output_dsf)
                                 fwprintf(stdout, L"\nExporting DSF output in folder: [%ls] ... \n", wide_folder);
+                            else if (opts.output_flac)
+                                fwprintf(stdout, L"\nExporting 24-bit/%u Hz PCM FLAC output in folder: [%ls] ... \n", opts.flac_sample_rate, wide_folder);
                             else
                                 fwprintf(stdout, L"\nExporting DSDIFF output in folder: [%ls]  ... \n", wide_folder);
 
@@ -1606,6 +1644,7 @@ Err_close:                  scarletbook_close(handle);
 
                             output = scarletbook_output_create(handle, handle_status_update_track_callback, handle_status_update_progress_callback, safe_fwprintf);
                             scarletbook_output_set_max_read_errors(output, opts.max_read_errors);
+                            scarletbook_output_set_flac_sample_rate(output, opts.flac_sample_rate);
 
                             if(opts.concatenate == 0)
                             {
@@ -1624,6 +1663,13 @@ Err_close:                  scarletbook_close(handle);
                                         file_path = make_filename(NULL, output_dir_dsd, musicfilename, "dsf");
                                         scarletbook_output_enqueue_track(output, area_idx, i, file_path, "dsf",
                                                                          1 /* always decode to DSD */);
+                                        no_of_enqued_tracks++;
+                                    }
+                                    else if (opts.output_flac)
+                                    {
+                                        file_path = make_filename(NULL, output_dir_dsd, musicfilename, "flac");
+                                        scarletbook_output_enqueue_track(output, area_idx, i, file_path, "flac",
+                                                                         1 /* FLAC always needs decoded DSD */);
                                         no_of_enqued_tracks++;
                                     }
                                     else if (opts.output_dsdiff)
@@ -1676,6 +1722,12 @@ Err_close:                  scarletbook_close(handle);
                                             scarletbook_output_enqueue_concatenate_tracks(output, area_idx, first_track, file_path, "dsf",
                                                                                           1 /* always decode to DSD */, last_track);
                                         }
+                                        else if (opts.output_flac)
+                                        {
+                                            file_path = make_filename(NULL, output_dir_dsd, musicfilename, "flac");
+                                            scarletbook_output_enqueue_concatenate_tracks(output, area_idx, first_track, file_path, "flac",
+                                                                                          1 /* FLAC always needs decoded DSD */, last_track);
+                                        }
                                         else if (opts.output_dsdiff)
                                         {
                                             file_path = make_filename(NULL, output_dir_dsd, musicfilename, "dff");
@@ -1695,21 +1747,23 @@ Err_close:                  scarletbook_close(handle);
 
                             print_start_time();
 
-                            LOG(lm_main, LOG_NOTICE, ("Start processing dsf/dff files"));
+                            LOG(lm_main, LOG_NOTICE, ("Start processing audio files"));
                             scarletbook_output_start(output);
-                            LOG(lm_main, LOG_NOTICE, ("Start destroy dsf/dff"));
+                            LOG(lm_main, LOG_NOTICE, ("Start finalizing audio output"));
                             merge_output_result(scarletbook_output_destroy(output), &exit_main_flag);
                             output = NULL;
-                            LOG(lm_main, LOG_NOTICE, ("Finish destroy dsf/dff"));
+                            LOG(lm_main, LOG_NOTICE, ("Finished finalizing audio output"));
 
                             print_end_time();
 
                             if (opts.output_dsf)
                                 fwprintf(stdout, L"\n\nWe are done exporting DSF...\n");
+                            else if (opts.output_flac)
+                                fwprintf(stdout, L"\n\nWe are done exporting FLAC...\n");
                             else
                                 fwprintf(stdout, L"\n\nWe are done exporting DSDIFF...\n");
 
-                        } // end if (opts.output_dsf || opts.output_dsdiff)
+                        } // end if (opts.output_dsf || opts.output_flac || opts.output_dsdiff)
 
 
                         if (opts.multi_channel == 1)
@@ -1721,7 +1775,7 @@ Err_close:                  scarletbook_close(handle);
 
                     } // end while opts.two_channel + opts.multi_channel
 
-                }  // end if (opts.output_dsf || opts.output_dsdiff || opts.output_dsdiff_em || opts.export_cue_sheet)
+                }  // end if (opts.output_dsf || opts.output_flac || opts.output_dsdiff || opts.output_dsdiff_em || opts.export_cue_sheet)
 
                 free(output_dir);
                 free(album_filename);
