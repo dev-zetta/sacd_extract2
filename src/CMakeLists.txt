@@ -189,6 +189,14 @@ if(WIN32)
     endif()
     find_package(Iconv REQUIRED)
     if(SACD_WINDOWS_STATIC)
+        # Find the archive explicitly while static-only suffixes are active.
+        # Threads::Threads may otherwise select libwinpthread.dll.a, leaving
+        # the packaged executable dependent on libwinpthread-1.dll.
+        find_library(SACD_WINPTHREAD_LIBRARY NAMES winpthread)
+        if(NOT SACD_WINPTHREAD_LIBRARY)
+            message(FATAL_ERROR
+                    "Static libwinpthread is required for a portable Windows package")
+        endif()
         set(CMAKE_FIND_LIBRARY_SUFFIXES "${_SACD_LIBRARY_SUFFIXES}")
         unset(_SACD_LIBRARY_SUFFIXES)
     endif()
@@ -200,8 +208,13 @@ if(WIN32)
         _FILE_OFFSET_BITS=64
         UNICODE
         _UNICODE)
+    if(SACD_WINDOWS_STATIC)
+        target_link_libraries(sacd_extract_core PUBLIC
+            "${SACD_WINPTHREAD_LIBRARY}")
+    else()
+        target_link_libraries(sacd_extract_core PUBLIC Threads::Threads)
+    endif()
     target_link_libraries(sacd_extract_core PUBLIC
-        Threads::Threads
         FLAC::FLAC
         Iconv::Iconv
         ws2_32)
