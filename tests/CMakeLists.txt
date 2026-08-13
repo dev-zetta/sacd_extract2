@@ -22,6 +22,11 @@ add_test(NAME test_cli_config_precedence
                  -DWORK=${CMAKE_CURRENT_BINARY_DIR}/cli-config
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_config.cmake)
 
+add_test(NAME test_cli_argument_order
+         COMMAND ${CMAKE_COMMAND}
+                 -DEXTRACTOR=$<TARGET_FILE:sacd_extract>
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_argument_order.cmake)
+
 set(SACD_TEST_ISO "" CACHE FILEPATH "Optional SACD ISO used by integration tests")
 if(SACD_TEST_ISO)
     if(NOT EXISTS "${SACD_TEST_ISO}")

@@ -59,26 +59,30 @@ on libxml2; on Linux it only requires the standard C runtime.
 Print disc and track metadata without extracting audio:
 
 ```bash
-sacd_extract -P -i "Album.iso"
+sacd_extract "Album.iso" --info
 ```
 
 Extract all stereo tracks as DSF:
 
 ```bash
-sacd_extract -2 -s -i "Album.iso"
+sacd_extract --stereo --dsf "Album.iso"
 ```
 
 Extract all multichannel tracks as DSF:
 
 ```bash
-sacd_extract -m -s -i "Album.iso"
+sacd_extract "Album.iso" --dsf --multichannel
 ```
 
 Extract selected stereo tracks and convert DST to DSDIFF:
 
 ```bash
-sacd_extract -2 -p -c -t 1,5,13 -i "Album.iso"
+sacd_extract --tracks 1,5,13 "Album.iso" --stereo --dsdiff --convert-dst
 ```
+
+Options and the positional input may appear in any order, including when the
+`POSIXLY_CORRECT` environment variable is set. The explicit `-i INPUT` and
+`--input INPUT` forms remain supported.
 
 Use `-y DIR` to choose the DSF/DSDIFF output directory and `-o DIR` for raw
 ISO or DSDIFF Edit Master output.
@@ -87,17 +91,18 @@ ISO or DSDIFF Edit Master output.
 
 | Option | Purpose |
 | --- | --- |
-| `-2` | Select the two-channel area (default) |
-| `-m` | Select the multichannel area |
-| `-s` | Write individual DSF tracks |
-| `-p` | Write individual DSDIFF tracks |
-| `-e` | Write a DSDIFF Edit Master |
-| `-c` | Convert DST-compressed audio to DSD |
-| `-t LIST` | Extract selected tracks, such as `1,5,13` |
-| `-k` | Concatenate consecutive selected tracks |
-| `-C` | Export CUE and XML metadata |
-| `-P` | Print disc information without extracting |
-| `-i INPUT` | Read an ISO, device, or compatible `host:port` source |
+| `-2`, `--stereo` | Select the two-channel area (default) |
+| `-m`, `--multichannel` | Select the multichannel area |
+| `-s`, `--dsf` | Write individual DSF tracks |
+| `-p`, `--dsdiff` | Write individual DSDIFF tracks |
+| `-e`, `--edit-master` | Write a DSDIFF Edit Master |
+| `-I`, `--iso` | Write a raw ISO |
+| `-c`, `--convert-dst` | Convert DST-compressed audio to DSD |
+| `-t LIST`, `--tracks LIST` | Extract selected tracks, such as `1,5,13` |
+| `-k`, `--concatenate` | Concatenate consecutive selected tracks |
+| `-C`, `--cue` | Export CUE and XML metadata |
+| `-P`, `--info` | Print disc information without extracting |
+| `-i INPUT`, `--input INPUT` | Read an ISO, device, or compatible `host:port` source |
 | `--max-read-errors N` | Allow at most `N` permanent media defects per output track; default `10`, `0` is fail-fast |
 | `--log` / `--no-log` | Explicitly enable or disable session logging |
 | `--log-file FILE` | Write the session log to an explicit path |

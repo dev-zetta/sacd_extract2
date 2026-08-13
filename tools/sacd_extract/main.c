@@ -121,28 +121,28 @@ static int parse_options(int argc, char *argv[])
     char *program_name = NULL;
 
     static const char help_text[] =
-        "Usage: %s [options] -i[=FILE]\n"
+        "Usage: %s [options] [INPUT]\n"
         "Options:\n"
-        "  -2, --2ch-tracks                : Export two channel tracks (default)\n"
-        "  -m, --mch-tracks                : Export multi-channel tracks\n"
-        "  -e, --output-dsdiff-em          : output as Philips DSDIFF (Edit Master) file\n"
-        "  -p, --output-dsdiff             : output as Philips DSDIFF file\n"
-        "  -s, --output-dsf                : output as Sony DSF file\n"
-        "  -z, --dsf-nopad                 : Do not zero pad DSF (cannot be used with -t)\n"
-        "  -t, --select-track              : only output selected track(s) (ex. -t 1,5,13)\n"
+        "  -2, --stereo                    : Export two channel tracks (default)\n"
+        "  -m, --multichannel              : Export multi-channel tracks\n"
+        "  -e, --edit-master               : output as Philips DSDIFF (Edit Master) file\n"
+        "  -p, --dsdiff                    : output as Philips DSDIFF file\n"
+        "  -s, --dsf                       : output as Sony DSF file\n"
+        "  -z, --no-dsf-padding            : Do not zero pad DSF (cannot be used with -t)\n"
+        "  -t, --tracks LIST               : only output selected track(s) (ex. --tracks 1,5,13)\n"
         "  -k, --concatenate               : concatenate consecutive selected track(s) (ex. -k -t 2,3,4)\n"
-        "  -I, --output-iso                : output as RAW ISO\n"
+        "  -I, --iso                       : output as RAW ISO\n"
 #ifndef SECTOR_LIMIT
-        "  -w, --concurrent                : Concurrent ISO+DSF/DSDIFF processing mode\n"
+        "  -w, --parallel                  : Concurrent ISO+DSF/DSDIFF processing mode\n"
 #endif
         "  -c, --convert-dst               : convert DST to DSD\n"
-        "  -C, --export-cue                : Export a CUE Sheet\n"
-        "  -o, --output-dir[=DIR]          : Output directory for ISO or DSDIFF Edit Master\n"
-        "  -y, --output-dir-conc[=DIR]     : Output directory for DSF or DSDIFF \n"
-        "  -P, --print                     : display disc and track information\n"
-        "  -A, --artist                    : artist name is added in folder name. Default is disabled\n"
-        "  -a, --performer                 : performer name is added in track filename. Default is disabled\n"
-        "  -b, --pauses                    : all pauses will be included. Default is disabled\n"
+        "  -C, --cue                       : Export CUE and XML metadata\n"
+        "  -o, --output-dir DIR            : Output directory for ISO or DSDIFF Edit Master\n"
+        "  -y, --track-output-dir DIR      : Output directory for DSF or DSDIFF\n"
+        "  -P, --info                      : display disc and track information\n"
+        "  -A, --include-artist            : add artist name to the album folder\n"
+        "  -a, --include-performer         : add performer name to track filenames\n"
+        "  -b, --include-pauses            : include all pauses\n"
         "  -v, --version                   : Display version\n"
         "      --max-read-errors N         : tolerate N media defects per output track (default: 10)\n"
         "      --log                       : enable a structured session log\n"
@@ -150,51 +150,69 @@ static int parse_options(int argc, char *argv[])
         "      --log-file FILE             : write the session log to FILE\n"
         "      --log-level LEVEL           : error, warning, notice, info, or debug\n"
         "\n"
-        "  -i, --input[=FILE]              : set source and determine if \"iso\" image, \n"
+        "  -i, --input FILE                : set source and determine if \"iso\" image,\n"
         "                                    device or server (ex. -i 192.168.1.10:2002)\n"
+        "                                    INPUT may instead be given positionally\n"
+        "                                    and options may appear before or after it\n"
         "\n"
         "Help options:\n"
         "  -?, --help                      : Show this help message\n"
         "  --usage                         : Display brief usage message\n";
 
     static const char usage_text[] =
-        "Usage: %s [-2|--2ch-tracks] [-m|--mch-tracks] [-p|--output-dsdiff]\n"
+        "Usage: %s [-2|--stereo] [-m|--multichannel] [-p|--dsdiff]\n"
 #ifdef SECTOR_LIMIT
-        "        [-e|--output-dsdiff-em] [-s|--output-dsf] [-I|--output-iso]\n"
+        "        [-e|--edit-master] [-s|--dsf] [-I|--iso]\n"
 #else
-        "        [-e|--output-dsdiff-em] [-s|--output-dsf] [-I|--output-iso] [-w|--concurrent]\n"
+        "        [-e|--edit-master] [-s|--dsf] [-I|--iso] [-w|--parallel]\n"
 #endif
-        "        [-c|--convert-dst] [-C|--export-cue] [-i|--input FILE] [-o|--output-dir DIR] [-y|--output-dir-conc DIR] [-P|--print]\n"
+        "        [-c|--convert-dst] [-C|--cue] [-i|--input INPUT] [-o|--output-dir DIR]\n"
+        "        [-y|--track-output-dir DIR] [-P|--info] [INPUT]\n"
         "        [-?|--help] [--usage]\n";
 
 
 #ifdef SECTOR_LIMIT
-    static const char options_string[] = "2mepszt:kIcCo:y:PAabvi:?u";
+    static const char options_string[] = "-2mepszt:kIcCo:y:PAabvi:?u";
 #else
-    static const char options_string[] = "2mepszt:kIwcCo:y:PAabvi:?u";
+    static const char options_string[] = "-2mepszt:kIwcCo:y:PAabvi:?u";
 #endif
 
     static const struct option options_table[] = {
         {"2ch-tracks", no_argument, NULL, '2'},
+        {"stereo", no_argument, NULL, '2'},
         {"mch-tracks", no_argument, NULL, 'm'},
+        {"multichannel", no_argument, NULL, 'm'},
         {"output-dsdiff-em", no_argument, NULL, 'e'},
+        {"edit-master", no_argument, NULL, 'e'},
         {"output-dsdiff", no_argument, NULL, 'p'},
+        {"dsdiff", no_argument, NULL, 'p'},
         {"output-dsf", no_argument, NULL, 's'},
+        {"dsf", no_argument, NULL, 's'},
         {"dsf-nopad", no_argument, NULL, 'z'},
+        {"no-dsf-padding", no_argument, NULL, 'z'},
         {"select-track",required_argument, NULL,'t'},
+        {"tracks", required_argument, NULL, 't'},
         {"concatenate", no_argument, NULL, 'k'},
         {"output-iso", no_argument, NULL, 'I'},
+        {"iso", no_argument, NULL, 'I'},
 #ifndef SECTOR_LIMIT
         {"concurrent", no_argument, NULL, 'w'},
+        {"parallel", no_argument, NULL, 'w'},
 #endif
         {"convert-dst", no_argument, NULL, 'c'},
         {"export-cue", no_argument, NULL, 'C'},
+        {"cue", no_argument, NULL, 'C'},
         {"output-dir", required_argument, NULL, 'o'},
         {"output-dir-conc", required_argument, NULL, 'y'},
+        {"track-output-dir", required_argument, NULL, 'y'},
         {"print", no_argument, NULL, 'P'},
+        {"info", no_argument, NULL, 'P'},
         {"artist", no_argument, NULL, 'A'},
+        {"include-artist", no_argument, NULL, 'A'},
         {"performer", no_argument, NULL, 'a'},
+        {"include-performer", no_argument, NULL, 'a'},
         {"pauses", no_argument, NULL, 'b'},
+        {"include-pauses", no_argument, NULL, 'b'},
         {"version", no_argument, NULL, 'v'},
         {"input", required_argument, NULL, 'i'},
         {"max-read-errors", required_argument, NULL, OPT_MAX_READ_ERRORS},
@@ -211,6 +229,20 @@ static int parse_options(int argc, char *argv[])
 
     while ((opt = getopt_long(argc, argv, options_string, options_table, NULL)) >= 0) {
         switch (opt) {
+        case 1:
+            if (opts.input_device)
+            {
+                fprintf(stderr, "Only one input source may be specified.\n");
+                free(program_name);
+                return -1;
+            }
+            opts.input_device = strdup(optarg);
+            if (!opts.input_device)
+            {
+                free(program_name);
+                return -1;
+            }
+            break;
         case OPT_MAX_READ_ERRORS:
         {
             char *end = NULL;
@@ -331,6 +363,12 @@ static int parse_options(int argc, char *argv[])
         case 'C': opts.export_cue_sheet = 1; break;
         case 'i':
         {
+            if (opts.input_device)
+            {
+                fprintf(stderr, "Only one input source may be specified.\n");
+                free(program_name);
+                return -1;
+            }
             size_t n = strlen(optarg);
             if (n >= MAX_BUFF_FULL_PATH_LEN) n = MAX_BUFF_FULL_PATH_LEN-1;
             //opts.input_device = strdup(optarg);
@@ -418,6 +456,23 @@ static int parse_options(int argc, char *argv[])
         case 'u':
             show_usage = 1;
             break;
+        }
+    }
+
+    /* Arguments after -- are positional inputs too. */
+    while (optind < argc)
+    {
+        if (opts.input_device)
+        {
+            fprintf(stderr, "Only one input source may be specified.\n");
+            free(program_name);
+            return -1;
+        }
+        opts.input_device = strdup(argv[optind++]);
+        if (!opts.input_device)
+        {
+            free(program_name);
+            return -1;
         }
     }
 

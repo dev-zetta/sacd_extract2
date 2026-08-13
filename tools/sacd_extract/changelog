@@ -1,3 +1,15 @@
+Version: sacd_extract 0.4.2 (2026-08-13)
+
+- made option parsing independent of argument position, including with
+  POSIXLY_CORRECT set, and accept one input source as a positional argument;
+- added Linux-friendly long aliases including --stereo, --multichannel, --dsf,
+  --dsdiff, --edit-master, --iso, --tracks, --cue, and --info;
+- retained the existing short options and legacy long names for compatibility;
+- added regression tests for mixed argument order, aliases, positional input,
+  and rejection of multiple input sources.
+
+----------------------------------------------------------------------------------
+
 Version: sacd_extract 0.4.1 (2026-08-13)
 
 - replaced the libxml2-based metadata writer with a bundled write-only UTF-8
