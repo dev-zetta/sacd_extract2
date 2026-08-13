@@ -210,7 +210,10 @@ if(WIN32)
 
     if(SACD_WINDOWS_STATIC)
         target_compile_definitions(sacd_extract_core PUBLIC LIBICONV_STATIC)
-        target_link_options(sacd_extract PRIVATE -static -static-libgcc)
+        target_link_options(sacd_extract PRIVATE
+            -static
+            -static-libgcc
+            -static-libstdc++)
     endif()
 elseif(APPLE)
     add_definitions(-D_FILE_OFFSET_BITS=64)

@@ -230,6 +230,8 @@ if [[ $platform == linux ]]; then
 else
   imports_file="$build_dir/windows-imports.txt"
   objdump -p "$extractor" >"$imports_file"
+  printf 'Windows executable imports:\n'
+  grep -Ei 'DLL Name:' "$imports_file" || true
   if grep -Eiq 'DLL Name: (libiconv|libintl|libwinpthread|libgcc)' \
       "$imports_file"; then
     fail 'unexpected MinGW runtime dependency'
