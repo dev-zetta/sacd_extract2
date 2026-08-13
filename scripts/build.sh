@@ -99,8 +99,7 @@ case "$platform" in
   linux)
     [[ $host_name == Linux* ]] || fail 'Linux builds must run on a Linux host'
     executable_name=sacd_extract
-    cmake_generator=()
-    cmake_platform_options=()
+    cmake_generator=
     cli_archive=sacd_extract-linux-x86_64.tar.gz
     gui_archive=sacd-extract-gui-linux-x86_64.AppImage
     gui_bundle=appimage
@@ -110,11 +109,7 @@ case "$platform" in
     [[ $(uname -m) == arm64 ]] || \
       fail 'macOS builds currently target Apple Silicon (arm64) only'
     executable_name=sacd_extract
-    cmake_generator=()
-    cmake_platform_options=(
-      -DCMAKE_OSX_ARCHITECTURES=arm64
-      -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-    )
+    cmake_generator=
     cli_archive=sacd_extract-macos-arm64.tar.gz
     gui_archive=sacd-extract-gui-macos-arm64.dmg
     gui_bundle=dmg
@@ -125,8 +120,7 @@ case "$platform" in
     [[ ${MSYSTEM:-} == MINGW64 ]] || \
       fail 'Windows builds require the MSYS2 MINGW64 environment'
     executable_name=sacd_extract.exe
-    cmake_generator=(-G Ninja)
-    cmake_platform_options=(-DSACD_WINDOWS_STATIC=ON)
+    cmake_generator=Ninja
     cli_archive=sacd_extract-windows-x86_64.zip
     gui_archive=sacd-extract-gui-windows-x86_64-setup.exe
     gui_bundle=nsis
@@ -213,22 +207,34 @@ fi
 
 printf 'Building for %s in %s\n' "$platform" "$build_dir"
 
-cmake_build_options=()
+cmake_arguments=(
+  -S "$repo_root/src"
+  -B "$build_dir"
+  -DCMAKE_BUILD_TYPE="$build_type"
+  -DBUILD_TESTING=ON
+)
+if [[ -n $cmake_generator ]]; then
+  cmake_arguments+=(-G "$cmake_generator")
+fi
+case "$platform" in
+  macos)
+    cmake_arguments+=(
+      -DCMAKE_OSX_ARCHITECTURES=arm64
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+    )
+    ;;
+  windows)
+    cmake_arguments+=(-DSACD_WINDOWS_STATIC=ON)
+    ;;
+esac
 if ((sanitizers)); then
-  cmake_build_options+=(
+  cmake_arguments+=(
     '-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer'
     '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined'
   )
 fi
 
-cmake \
-  -S "$repo_root/src" \
-  -B "$build_dir" \
-  "${cmake_generator[@]}" \
-  -DCMAKE_BUILD_TYPE="$build_type" \
-  -DBUILD_TESTING=ON \
-  "${cmake_platform_options[@]}" \
-  "${cmake_build_options[@]}"
+cmake "${cmake_arguments[@]}"
 cmake --build "$build_dir" --parallel
 
 extractor="$build_dir/$executable_name"
