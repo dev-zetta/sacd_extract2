@@ -29,16 +29,11 @@
 #endif
 #include <errno.h>
 #include <assert.h>
-#ifdef __lv2ppu__
-#include <sys/file.h>
-#include <sys/thread.h>
-#elif defined(WIN32) || defined(_WIN32)
+#if defined(WIN32) || defined(_WIN32)
 #include <io.h>
 #endif
-#ifndef __lv2ppu__
 #include <pthread.h>
-#endif
-#include <sys/atomic.h>
+#include <stdatomic.h>
 #include <signal.h>
 
 #include <charset.h>
@@ -72,13 +67,9 @@ struct scarletbook_output_s
 
     uint8_t            *read_buffer;
 
-#ifdef __lv2ppu__
-    sys_ppu_thread_t    processing_thread_id;
-#else
     pthread_t           processing_thread_id;
-#endif
-    atomic_t            stop_processing;            // indicates if the thread needs to stop or has stopped
-    atomic_t            processing;
+    atomic_int          stop_processing;            // indicates if the thread needs to stop or has stopped
+    atomic_int          processing;
 
     // stats
     int                 stats_total_tracks;
@@ -353,10 +344,6 @@ static int create_output_file(scarletbook_output_format_t *ft)
         goto error;
     }
 
-#ifdef __lv2ppu__
-    sysFsChmod(ft->filename, S_IFMT | 0777); 
-#endif
-
     /*
      * DSF writes are already block-sized.  Do not add a long-lived userspace
      * cache here: corrupted cache contents used to be flushed as complete
@@ -537,21 +524,15 @@ static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_dat
     }
 }
 
-#ifdef __lv2ppu__
-static void processing_thread(void *arg)
-#else
 static void *processing_thread(void *arg)
-#endif
 {
     scarletbook_output_t *output = (scarletbook_output_t *) arg;
     scarletbook_handle_t *handle = output->sb_handle;
     struct list_head * node_ptr;
     scarletbook_output_format_t *ft = NULL;
-    int non_encrypted_disc = 0;
-    int checked_for_non_encrypted_disc = 0;
 	int no_tracks_with_errors = 0;
 
-    sysAtomicSet(&output->processing, 1);
+    atomic_store(&output->processing, 1);
     while (!list_empty(&output->ripping_queue))
     {
         node_ptr = output->ripping_queue.next;
@@ -579,23 +560,6 @@ static void *processing_thread(void *arg)
         if (create_output_file(ft) == 0)
         {
             uint32_t block_size=0, end_lsn=0, blocks_readed = 0;
-            uint32_t encrypted_start_1 = 0;
-            uint32_t encrypted_start_2 = 0;
-            uint32_t encrypted_end_1 = 0;
-            uint32_t encrypted_end_2 = 0;
-            int encrypted;
-
-            // set the encryption range
-            if (handle->area[0].area_toc != 0)
-            {
-                encrypted_start_1 = handle->area[0].area_toc->track_start;
-                encrypted_end_1 = handle->area[0].area_toc->track_end;
-            }
-            if (handle->area[1].area_toc != 0)
-            {
-                encrypted_start_2 = handle->area[1].area_toc->track_start;
-                encrypted_end_2 = handle->area[1].area_toc->track_end;
-            }
 
             // what blocks do we need to process?
             ft->current_lsn = ft->start_lsn;
@@ -603,39 +567,13 @@ static void *processing_thread(void *arg)
 
             //handle->count_frames = 0;
 
-            sysAtomicSet(&output->stop_processing, 0);
+            atomic_store(&output->stop_processing, 0);
 
-            while (sysAtomicRead(&output->stop_processing) == 0)
+            while (atomic_load(&output->stop_processing) == 0)
             {
                 if (ft->current_lsn < end_lsn)
                 {
-                    // check what block ranges are encrypted..
-                    if (ft->current_lsn < encrypted_start_1)
-                    {
-                        block_size = min(encrypted_start_1 - ft->current_lsn, MAX_PROCESSING_BLOCK_SIZE);
-                        encrypted = 0;
-                    }
-                    else if (ft->current_lsn >= encrypted_start_1 && ft->current_lsn <= encrypted_end_1)
-                    {
-                        block_size = min(encrypted_end_1 + 1 - ft->current_lsn, MAX_PROCESSING_BLOCK_SIZE);
-                        encrypted = 1;
-                    }
-                    else if (ft->current_lsn > encrypted_end_1 && ft->current_lsn < encrypted_start_2)
-                    {
-                        block_size = min(encrypted_start_2 - ft->current_lsn, MAX_PROCESSING_BLOCK_SIZE);
-                        encrypted = 0;
-                    }
-                    else if (ft->current_lsn >= encrypted_start_2 && ft->current_lsn <= encrypted_end_2)
-                    {
-                        block_size = min(encrypted_end_2 + 1 - ft->current_lsn, MAX_PROCESSING_BLOCK_SIZE);
-                        encrypted = 1;
-                    }
-                    else
-                    {
-                        block_size = MAX_PROCESSING_BLOCK_SIZE;
-                        encrypted = 0;
-                    }
-                    block_size = min(end_lsn - ft->current_lsn, block_size);
+                    block_size = min(end_lsn - ft->current_lsn, MAX_PROCESSING_BLOCK_SIZE);
 
                     // read some blocks
                     blocks_readed = sacd_read_block_raw(ft->sb_handle->sacd, ft->current_lsn, block_size, output->read_buffer);
@@ -644,7 +582,7 @@ static void *processing_thread(void *arg)
                     {
                         output->fwprintf_callback(stdout, L"\n \n Error:blocks_readed =0, current_lsn:%d, end_lsn:%d, block_size:%d \n", ft->current_lsn, end_lsn, block_size);
                         LOG(lm_main, LOG_ERROR, ("Error:blocks_readed = 0, current_lsn:%d, end_lsn:%d, block_size:%d", ft->current_lsn, end_lsn, block_size));                        
-                        sysAtomicSet(&output->stop_processing, 1);
+                        atomic_store(&output->stop_processing, 1);
                     }
 
                     block_size=blocks_readed;
@@ -652,28 +590,6 @@ static void *processing_thread(void *arg)
                     ft->current_lsn += block_size;
                     output->stats_total_sectors_processed += block_size;
                     output->stats_current_file_sectors_processed += block_size;
-
-                    // the ATAPI call which returns the flag if the disc is encrypted or not is unknown at this point. 
-                    // user reports tell me that the only non-encrypted discs out there are DSD 3 14/16 discs. 
-                    // this is a quick hack/fix for these discs.
-                    if (encrypted && checked_for_non_encrypted_disc == 0)
-                    {
-                        switch (handle->area[ft->area].area_toc->frame_format)
-                        {
-                        case FRAME_FORMAT_DSD_3_IN_14:
-                        case FRAME_FORMAT_DSD_3_IN_16:
-                            non_encrypted_disc = *(uint64_t *)(output->read_buffer + 16) == 0;
-                            break;
-                        }
-
-                        checked_for_non_encrypted_disc = 1;
-                    }
-
-                    // encrypted blocks need to be decrypted first
-                    if (encrypted && non_encrypted_disc == 0)
-                    {
-                        sacd_decrypt(ft->sb_handle->sacd, output->read_buffer, block_size);
-                    }
 
                     //debug
                     //output->fwprintf_callback(stdout, L"\n \n Debug - scarletbook_process_frames(): block_size %d, last bloc=%d \n", block_size, ft->current_lsn == end_lsn);
@@ -700,7 +616,7 @@ static void *processing_thread(void *arg)
 					   if (rezult ==(size_t) -1) 
 					   {
 						   output->fwprintf_callback(stdout, L"\n \n Error in writting ISO in file. \n");
-						   sysAtomicSet(&output->stop_processing, 1);
+						   atomic_store(&output->stop_processing, 1);
 					   }
 					    
                     }
@@ -720,7 +636,7 @@ static void *processing_thread(void *arg)
                     break;
                 } // end if (ft->current_lsn < end_lsn)
 
-            } // end while (sysAtomicRead(&output->stop_processing
+            } // end while processing is active
 
         }  // end  if (create_output_file(ft)
         else  // error in creating file
@@ -781,14 +697,14 @@ static void *processing_thread(void *arg)
                       
         }
 
-        if (sysAtomicRead(&output->stop_processing) == 1)
+        if (atomic_load(&output->stop_processing) == 1)
         {
             output->fwprintf_callback(stdout, L"\n ...stop processing\n");
             LOG(lm_main, LOG_NOTICE, ("...stop processing"));
             // make a copy of the filename
             //char *file_to_remove = strdup(ft->filename);
 
-            sysAtomicSet(&output->processing, 0);
+            atomic_store(&output->processing, 0);
 
             if (ft->dsd_encoded_export && ft->dst_encoded_import)
             {
@@ -804,11 +720,7 @@ static void *processing_thread(void *arg)
             }
 
             // remove the file being worked on
-#ifdef __lv2ppu__
-           // if (sysFsUnlink(file_to_remove) != 0)
-#else
            // if (remove(file_to_remove) != 0)
-#endif
             //{
             //    LOG(lm_main, LOG_ERROR, ("user cancelled, error removing: %s, [%s]", file_to_remove, strerror(errno)));
             //}
@@ -816,11 +728,7 @@ static void *processing_thread(void *arg)
             //free(file_to_remove);
 
             destroy_ripping_queue(output);
-#ifdef __lv2ppu__
-            sysThreadExit(-1);
-#else
             pthread_exit(0);
-#endif
         }
 		
 		//DEBUG LOG(lm_main, LOG_ERROR, ("before dsd_encoded_export"));
@@ -843,21 +751,16 @@ static void *processing_thread(void *arg)
 	// DEBUG LOG(lm_main, LOG_ERROR, ("before destroy_ripping_queue"));
 	
     destroy_ripping_queue(output);
-    sysAtomicSet(&output->processing, 0);
-
-#ifdef __lv2ppu__
-    sysThreadExit(-1);
-#else
-    pthread_exit(0);
-
-    return 0;
-#endif
+    atomic_store(&output->processing, 0);
+    return NULL;
 }
 
 scarletbook_output_t *scarletbook_output_create(scarletbook_handle_t *handle, stats_track_callback_t cb_track, stats_progress_callback_t cb_progress, fwprintf_callback_t cb_fwprintf)
 {
     scarletbook_output_t *output = (scarletbook_output_t *) calloc(1, sizeof(scarletbook_output_t));
 
+    atomic_init(&output->stop_processing, 0);
+    atomic_init(&output->processing, 0);
     INIT_LIST_HEAD(&output->ripping_queue);
     output->read_buffer = (uint8_t *) malloc(MAX_PROCESSING_BLOCK_SIZE * SACD_LSN_SIZE);
     output->sb_handle = handle;
@@ -870,7 +773,7 @@ scarletbook_output_t *scarletbook_output_create(scarletbook_handle_t *handle, st
 
 int scarletbook_output_is_busy(scarletbook_output_t *output)
 {
-    return sysAtomicRead(&output->processing);
+    return atomic_load(&output->processing);
 }
 
 int scarletbook_output_start(scarletbook_output_t *output)
@@ -879,17 +782,7 @@ int scarletbook_output_start(scarletbook_output_t *output)
 
     scarletbook_output_init_stats(output);
 
-#ifdef __lv2ppu__
-    ret = sysThreadCreate(&output->processing_thread_id,
-                          processing_thread,
-                          (void *) output,
-                          1050,
-                          8192,
-                          THREAD_JOINABLE,
-                          "processing_thread");
-#else
     ret = pthread_create(&output->processing_thread_id, NULL, processing_thread, (void *) output);
-#endif
     if (ret)
     {
         LOG(lm_main, LOG_ERROR, ("return code from processing thread creation is %d\n", ret));
@@ -900,31 +793,22 @@ int scarletbook_output_start(scarletbook_output_t *output)
 
 void scarletbook_output_interrupt(scarletbook_output_t *output)
 {
-    sysAtomicSet(&output->stop_processing, 1);
+    atomic_store(&output->stop_processing, 1);
 }
 
 int scarletbook_output_destroy(scarletbook_output_t *output)
 {
-#ifdef __lv2ppu__
-    uint64_t thr_exit_code;
-#else
     void *thr_exit_code;
-#endif
     int ret = 0;
 
     if (!output)
         return -1;
 
-#ifdef __lv2ppu__
-    scarletbook_output_interrupt(output);
-    ret = sysThreadJoin(output->processing_thread_id, &thr_exit_code);
-#else
     scarletbook_output_interrupt(output);
     ret = pthread_join(output->processing_thread_id, &thr_exit_code);
-#endif    
     if (ret != 0)
     {
-        LOG(lm_main, LOG_ERROR, ("processing thread didn't close properly... %x", thr_exit_code));
+        LOG(lm_main, LOG_ERROR, ("processing thread didn't close properly... %p", thr_exit_code));
     }
 
     // If decoding is aborted (eg. ctrl+C), then free() buffers after the decoder has been destroyed,

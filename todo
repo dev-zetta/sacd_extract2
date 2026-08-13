@@ -10,7 +10,6 @@ version 0.3.x
         - the log should contain more information:
           - date/time
           - output format (ISO, mch DSDIFF (DSD), etc.)
-    - add option to embed sac_module & decoder
     - use output_format_t.error_number for error handling
      - catch read failures 
         - do not stop and continue decoding and reading

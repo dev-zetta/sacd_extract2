@@ -1,0 +1,46 @@
+name: Linux build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends cmake gcc libxml2-dev make
+
+      - name: Configure
+        run: >-
+          cmake -S tools/sacd_extract -B build/release
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build/release --parallel
+
+      - name: Smoke test
+        run: |
+          build/release/sacd_extract --version
+          build/release/sacd_extract --help
+
+      - name: Package executable
+        run: tar -C build/release -czf build/sacd_extract-linux-x86_64.tar.gz sacd_extract
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: sacd_extract-linux-x86_64
+          path: build/sacd_extract-linux-x86_64.tar.gz
+          if-no-files-found: error

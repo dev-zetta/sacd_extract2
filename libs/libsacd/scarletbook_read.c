@@ -73,11 +73,7 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
     if (!sb)
         return NULL;
 
-#ifdef __lv2ppu__
-    sb->frame.data = (uint8_t *) memalign(128, MAX_DST_SIZE);  // (1024 * 64)
-#else
     sb->frame.data = (uint8_t *) malloc(MAX_DST_SIZE);			//(1024 * 64)
-#endif
 
     if (!sb->frame.data)
         return NULL;

@@ -51,10 +51,6 @@
 //There are no foo64 functions for that reason. 
 //Just use fopen and friends and you get 64 bit file access for free.
 
-#if defined(__lv2ppu__)
-#include <sys/io_buffer.h>
-#endif
-
 // for linux it is already added preprocessor coomand in cmake text 
 //   -D_FILE_OFFSET_BITS=64
 // #define _FILE_OFFSET_BITS 64
@@ -65,8 +61,6 @@ extern sacd_input_t (*sacd_input_open)         (const char *);
 extern int          (*sacd_input_close)        (sacd_input_t);
 extern uint32_t     (*sacd_input_read)         (sacd_input_t, uint32_t, uint32_t, void *);
 extern char *       (*sacd_input_error)        (sacd_input_t);
-extern int          (*sacd_input_authenticate) (sacd_input_t);
-extern int          (*sacd_input_decrypt)      (sacd_input_t, uint8_t *, uint32_t);
 extern uint32_t     (*sacd_input_total_sectors)(sacd_input_t);
 
 int sacd_input_setup(const char *); 

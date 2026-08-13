@@ -1,6 +1,12 @@
 # CMake build file for SACD Extract
 
-cmake_minimum_required(VERSION 2.6...3.5)
+cmake_minimum_required(VERSION 3.16)
+
+project(sacd_extract LANGUAGES C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
 
 # Force to compile for Mac OS X 10.13. target (if you want the app run on all OS X versions).
 # Without this adding, if build is made on a MacOS 10.15 or newer, then the app will not run on systems older than 10.15.
@@ -22,7 +28,7 @@ if (MINGW64 MATCHES "YES")
 endif (MINGW64 MATCHES "YES")
 
 execute_process(
-    COMMAND git describe --tags --dirty --abbrev=64
+    COMMAND git describe --always --dirty --abbrev=12
     OUTPUT_VARIABLE GIT_COMMIT_HASH
     RESULT_VARIABLE GIT_COMMIT_HASH_RESULT
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -36,21 +42,19 @@ execute_process(
 )
 
 # Obtain git commit hash and repo url
-if(${GIT_COMMIT_HASH_RESULT} GREATER 0)
+if(GIT_COMMIT_HASH_RESULT GREATER 0)
     add_definitions("-DGIT_COMMIT_HASH=NA")
-else(${GIT_COMMIT_HASH_RESULT} GREATER 0)
+else()
     add_definitions("-DGIT_COMMIT_HASH=${GIT_COMMIT_HASH}")
     MESSAGE(STATUS "git commit hash: ${GIT_COMMIT_HASH}")
-endif(${GIT_COMMIT_HASH_RESULT} GREATER 0)
+endif()
 
-if(${GIT_REPO_URL_RESULT} GREATER 0)
+if(GIT_REPO_URL_RESULT GREATER 0)
     add_definitions("-DGIT_REPO_URL=NA")
-else(${GIT_REPO_URL_RESULT} GREATER 0)
+else()
     add_definitions("-DGIT_REPO_URL=\"${GIT_REPO_URL}\"")
     MESSAGE(STATUS "git repo url: ${GIT_REPO_URL}")
-endif(${GIT_REPO_URL_RESULT} GREATER 0)
-
-project(sacd_extract C)
+endif()
 
 # Load some macros.
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_PATH}")
@@ -59,7 +63,6 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules;${CMAKE_MODULE_P
 include(CheckIncludeFile)
 include(CheckFunctionExists)
 include(CheckTypeSize)
-include(FindThreads)
 
 # Include directory paths
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -72,6 +75,7 @@ include_directories("../../libs/libsacd")
 
 
 find_package(LibXml2 REQUIRED)
+find_package(Threads REQUIRED)
 
 # Extra flags for GCC
 STRING(TOUPPER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_UPPER)
@@ -80,7 +84,7 @@ if (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_C_COMPILER_ID MATCHES "Clang"))
     add_definitions(
         -pipe
         -Wall -Wextra -Wcast-align -Wpointer-arith
-        -Wno-unused-parameter `xml2-config --cflags`)
+        -Wno-unused-parameter)
  if (MINGW64 MATCHES "YES")
      add_definitions(
         -fno-stack-protector)
@@ -126,13 +130,6 @@ source_group(libid3 FILES ${libid3_headers} ${libid3_sources})
 
 file(GLOB libsacd_headers ../../libs/libsacd/*.h)
 file(GLOB libsacd_sources ../../libs/libsacd/*.c)
-# avoid ISO C empty translation unit errors
-list(REMOVE_ITEM libsacd_headers "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libsacd/dst_decoder_ps3.h")
-list(REMOVE_ITEM libsacd_sources "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libsacd/dst_decoder_ps3.c")
-list(REMOVE_ITEM libsacd_headers "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libsacd/ioctl.h")
-list(REMOVE_ITEM libsacd_sources "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libsacd/ioctl.c")
-list(REMOVE_ITEM libsacd_headers "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libsacd/sac_accessor.h")
-list(REMOVE_ITEM libsacd_sources "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libsacd/sac_accessor.c")
 source_group(libsacd FILES ${libsacd_headers} ${libsacd_sources})
 
 file(GLOB main_headers ./*.h)
@@ -156,5 +153,5 @@ elseif(APPLE)
     target_link_libraries(${PROJECT_NAME} -liconv -lxml2)
 else()
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(${PROJECT_NAME} -lxml2)
+    target_link_libraries(${PROJECT_NAME} PRIVATE LibXml2::LibXml2 Threads::Threads)
 endif()

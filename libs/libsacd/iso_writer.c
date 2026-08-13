@@ -22,9 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef __lv2ppu__
-#include <sys/file.h>
-#elif defined(WIN32)
+#if defined(WIN32)
 #include <io.h>
 #endif
 #include <logging.h>

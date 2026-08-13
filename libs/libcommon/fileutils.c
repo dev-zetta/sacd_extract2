@@ -326,12 +326,6 @@ char * parse_format(const char * format, int tracknum, const char * year, const 
     return ret;
 }
 
-#ifdef __lv2ppu__
-#include <sys/stat.h>
-#include <sys/file.h>
-#endif
-
-
 // Uses mkdir() for every component of the path except base_dir
 //  input: path_and_name (including base_dir)
 //         base_dir (from where to start creating directories)
@@ -384,9 +378,7 @@ int recursive_mkdir(char* path_and_name,char * base_dir, mode_t mode)
 
             LOG(lm_main, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir after call mkdir..path_and_name: %s; return=%d", path_and_name, rc));
 
-#ifdef __lv2ppu__
-            sysFsChmod(path_and_name, S_IFMT | 0777); 
-#elif !defined(_WIN32)
+#if !defined(_WIN32)
             chmod(path_and_name, mode);
 #endif
             pos[count] = charReplaced;
@@ -414,9 +406,7 @@ int recursive_mkdir(char* path_and_name,char * base_dir, mode_t mode)
     rc = mkdir(path_and_name, mode); // mode =0777  0774 // S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH
 #endif
     LOG(lm_main, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir after call mkdir..path_and_name: %s; return=%d  ", path_and_name, rc));
-#ifdef __lv2ppu__
-    sysFsChmod(path_and_name, S_IFMT | 0777);
-#elif !defined(_WIN32)
+#if !defined(_WIN32)
     chmod(path_and_name, mode);
 #endif
     if (rc != 0 && !(errno == EEXIST || errno == EISDIR || errno == EACCES || errno == EROFS))

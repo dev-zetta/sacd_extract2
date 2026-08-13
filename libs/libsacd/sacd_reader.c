@@ -162,14 +162,6 @@ sacd_reader_t *sacd_open(const char *ppath)
     }
 #endif
 
-#if defined(__lv2ppu__)
-    {
-        ret_val = sacd_open_image_file(path);
-        free(path);
-        return ret_val;
-    }
-#endif
-
 #if defined(WIN32) || defined(_WIN32)
     wchar_t *w_pathname;
     
@@ -251,7 +243,7 @@ sacd_reader_t *sacd_open(const char *ppath)
             return NULL;
         }
 
-#if !defined(WIN32) && !defined(__lv2ppu__) /* don't have fchdir, and getcwd( NULL, ... ) is strange */
+#if !defined(WIN32)
         /* Also WIN32 does not have symlinks, so we don't need this bit of code. */
 
         /* Resolve any symlinks and get the absolut dir name. */
@@ -416,22 +408,6 @@ uint32_t sacd_read_block_raw(sacd_reader_t *sacd, uint32_t lb_number,
     return ret;
 }
 
-int sacd_authenticate(sacd_reader_t *sacd)
-{
-    if (!sacd->dev)
-        return 0;
-
-    return sacd_input_authenticate(sacd->dev);
-}
-
-int sacd_decrypt(sacd_reader_t *sacd, uint8_t *buffer, uint32_t blocks)
-{
-    if (!sacd->dev)
-        return 0;
-
-    return sacd_input_decrypt(sacd->dev, buffer, blocks);
-}
-
 uint32_t sacd_get_total_sectors(sacd_reader_t *sacd)
 {
     if (!sacd->dev)
@@ -439,4 +415,3 @@ uint32_t sacd_get_total_sectors(sacd_reader_t *sacd)
 
     return sacd_input_total_sectors(sacd->dev);
 }
-

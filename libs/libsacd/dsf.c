@@ -27,9 +27,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <logging.h>
-#ifdef __lv2ppu__
-#include <sys/file.h>
-#elif defined(WIN32) || defined(_WIN32)
+#if defined(WIN32) || defined(_WIN32)
 #include <io.h>
 #endif
 

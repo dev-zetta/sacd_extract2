@@ -89,11 +89,7 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 	inbytesleft = insizebytes;
 
  retry:
-#ifdef __lv2ppu__ 
- 	if ((nconv=iconv(cd, (const char **) &input, &inbytesleft, &outptr, &outbytesleft)) == (size_t) -1)
-#else
- 	if ((nconv=iconv(cd,(char **) &input, &inbytesleft, &outptr, &outbytesleft)) == (size_t) -1)
-#endif
+	if ((nconv=iconv(cd,(char **) &input, &inbytesleft, &outptr, &outbytesleft)) == (size_t) -1)
 	{
 
 		switch (errno)

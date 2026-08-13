@@ -27,15 +27,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#if defined(__lv2ppu__)
-#include <sys/file.h>
-#include <sys/stat.h>
-#include <ppu-asm.h>
-
-#include <sys/storage.h>
-#include "ioctl.h"
-#include "sac_accessor.h"
-#elif defined(WIN32)
+#if defined(WIN32)
 #include <io.h>
 #endif
 
@@ -56,81 +48,13 @@ sacd_input_t (*sacd_input_open)         (const char *);
 int          (*sacd_input_close)        (sacd_input_t);
 uint32_t     (*sacd_input_read)         (sacd_input_t, uint32_t, uint32_t, void *);
 char *       (*sacd_input_error)        (sacd_input_t);
-int          (*sacd_input_authenticate) (sacd_input_t);
-int          (*sacd_input_decrypt)      (sacd_input_t, uint8_t *, uint32_t);
 uint32_t     (*sacd_input_total_sectors)(sacd_input_t);
 
 struct sacd_input_s
 {
     int                 fd;
     uint8_t            *input_buffer;
-#if defined(__lv2ppu__)
-    device_info_t       device_info;
-#endif
 };
-
-static int sacd_dev_input_authenticate(sacd_input_t dev)
-{
-#if defined(__lv2ppu__)
-    int ret = create_sac_accessor();
-    if (ret != 0)
-    {
-        LOG(lm_main, LOG_ERROR, ("create_sac_accessor (%#x)\n", ret));
-        return ret;
-    }
-
-    ret = sac_exec_initialize();
-    if (ret != 0)
-    {
-        LOG(lm_main, LOG_ERROR, ("sac_exec_initialize (%#x)\n", ret));
-        return ret;
-    }
-
-    ret = sac_exec_key_exchange(dev->fd);
-    if (ret != 0)
-    {
-        LOG(lm_main, LOG_ERROR, ("sac_exec_key_exchange (%#x)\n", ret));
-        return ret;
-    }
-#endif
-    return 0;
-}
-
-static int sacd_dev_input_decrypt(sacd_input_t dev, uint8_t *buffer,uint32_t blocks)
-{
-#if defined(__lv2ppu__)
-    uint32_t ret, block_number = 0;
-    while(block_number < blocks)
-    {
-        // SacModule has an internal max of 3*2048 to process
-        int block_size = min(blocks - block_number, 3);     
-        ret = sac_exec_decrypt_data(buffer + block_number * SACD_LSN_SIZE, block_size * SACD_LSN_SIZE, buffer + (block_number * SACD_LSN_SIZE));
-        if (ret != 0)
-        {
-            LOG(lm_main, LOG_ERROR, ("sac_exec_decrypt_data: (%#x)\n", ret));
-            return -1;
-        }
-
-        block_number += block_size;
-    }
-    return 0;
-#elif 0
-    // testing..
-    uint32_t block_number = 0;
-    while(block_number < blocks)
-    {
-        uint8_t * p = buffer + (block_number * SACD_LSN_SIZE);
-        uint8_t * e = p + SACD_LSN_SIZE;
-        while (p < e)
-        {
-            *p = 'E';
-            p += 2;
-        }
-        block_number++;
-    }
-#endif
-    return 0;
-}
 
 /**
  * initialize and open a SACD device or file.
@@ -154,47 +78,6 @@ static sacd_input_t sacd_dev_input_open(const char *target)
     CHAR2WCHAR(wide_filename, target);
     dev->fd = _wopen(wide_filename, O_RDONLY | O_BINARY);   
     free(wide_filename);
-#elif defined(__lv2ppu__)
-    {
-        uint8_t                 buffer[64];
-        int                     ret;
-
-        ret = sys_storage_get_device_info(BD_DEVICE, &dev->device_info);
-        if (ret != 0)
-        {
-            goto error;
-        }
-
-        ret = sys_storage_open(BD_DEVICE, &dev->fd);
-        if (ret != 0)
-        {
-            goto error;
-        }
-
-        memset(buffer, 0, 64);
-        ioctl_get_configuration(dev->fd, buffer);
-        print_hex_dump(LOG_NOTICE, "config: ", 16, 1, buffer, 64, 0);
-        if ((buffer[0] & 1) != 0)
-        {
-            LOG(lm_main, LOG_NOTICE, ("executing ioctl_mode_sense."));
-            ioctl_mode_sense(dev->fd, buffer);
-            if (buffer[11] == 2)
-            {
-                LOG(lm_main, LOG_NOTICE, ("executing ioctl_mode_select."));
-                ioctl_mode_select(dev->fd);
-            }
-        }
-        sys_storage_get_device_info(BD_DEVICE, &dev->device_info);
-
-        print_hex_dump(LOG_NOTICE, "device_info: ", 16, 1, &dev->device_info, sizeof(device_info_t), 0);
-        if (dev->device_info.sector_size != SACD_LSN_SIZE)
-        {
-            LOG(lm_main, LOG_ERROR, ("incorrect LSN size [%x]\n", dev->device_info.sector_size));
-            goto error;
-        }
-
-    }
-
 #else
     dev->fd = open(target, O_RDONLY);
 #endif
@@ -228,15 +111,6 @@ static char *sacd_dev_input_error(sacd_input_t dev)
  */
 static uint32_t sacd_dev_input_read(sacd_input_t dev,  uint32_t pos,  uint32_t blocks, void *buffer)
 {
-#if defined(__lv2ppu__)
-    int      ret;
-    uint32_t sectors_read;
-
-    ret = sys_storage_read(dev->fd, pos, blocks, buffer, &sectors_read);
-
-    return (ret != 0) ? 0 : sectors_read;
-
-#else
     off_t ret_lseek;
     size_t len;
     ssize_t ret;
@@ -279,7 +153,6 @@ static uint32_t sacd_dev_input_read(sacd_input_t dev,  uint32_t pos,  uint32_t b
     // read with succes
     return blocks;
     
-#endif
 }
 
 /**
@@ -289,23 +162,7 @@ static int sacd_dev_input_close(sacd_input_t dev)
 {
     int ret;
 
-#if defined(__lv2ppu__)
-    ret = sac_exec_exit();
-    if (ret != 0)
-    {
-        LOG(lm_main, LOG_ERROR, ("sac_exec_exit (%#x)\n", ret));
-    }
-
-    ret = destroy_sac_accessor();
-    if (ret != 0)
-    {
-        LOG(lm_main, LOG_ERROR, ("destroy_sac_accessor (%#x)\n", ret));
-    }
-
-    ret = sys_storage_close(dev->fd);
-#else
     ret = close(dev->fd);
-#endif
 
     free(dev);
 
@@ -317,9 +174,6 @@ static uint32_t sacd_dev_input_total_sectors(sacd_input_t dev)
     if (!dev)
         return 0;
 
-#if defined(__lv2ppu__)
-    return dev->device_info.total_sectors;
-#else
     {
         struct stat file_stat;
         if(fstat(dev->fd, &file_stat) < 0)    
@@ -327,7 +181,6 @@ static uint32_t sacd_dev_input_total_sectors(sacd_input_t dev)
 
         return (uint32_t) (file_stat.st_size / SACD_LSN_SIZE);
     }
-#endif
 }
 
 /**
@@ -615,8 +468,6 @@ int sacd_input_setup(const char* path)
         sacd_input_close = sacd_net_input_close;
         sacd_input_read = sacd_net_input_read;
         sacd_input_error = sacd_dev_input_error;
-        sacd_input_authenticate  = sacd_dev_input_authenticate;
-        sacd_input_decrypt = sacd_dev_input_decrypt;
         sacd_input_total_sectors = sacd_net_input_total_sectors;
 
         return 1;
@@ -626,8 +477,6 @@ int sacd_input_setup(const char* path)
     sacd_input_close = sacd_dev_input_close;
     sacd_input_read = sacd_dev_input_read;
     sacd_input_error = sacd_dev_input_error;
-    sacd_input_authenticate  = sacd_dev_input_authenticate;
-    sacd_input_decrypt = sacd_dev_input_decrypt;
     sacd_input_total_sectors = sacd_dev_input_total_sectors;
 
     return 0;

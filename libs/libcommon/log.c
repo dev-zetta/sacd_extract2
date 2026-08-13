@@ -42,23 +42,10 @@
 #include <unistd.h>
 #include <sys/stat.h> 
 
-#ifdef __lv2ppu__
-#include <sys/mutex.h>
-#include <sys/thread.h>
-#include <sys/stat.h>
-#include <sys/file.h>
-#endif
-
 #include "log.h"
 
-#ifdef __lv2ppu__
-static sys_mutex_t _log_lock;
-#define _LOCK_LOG() sysMutexLock(_log_lock, 0)
-#define _UNLOCK_LOG() sysMutexUnlock(_log_lock)
-#else
 #define _LOCK_LOG()
 #define _UNLOCK_LOG()
-#endif
 
 #define _PUT_LOG(fd, buf, nb)    { fwrite(buf, 1, nb, fd); fflush(fd); }
 
@@ -76,16 +63,6 @@ static int             output_time_stamp = 0;
 void log_init(void)
 {
     char             *ev = 0;
-
-#ifdef __lv2ppu__
-    sys_mutex_attr_t mutex_attr;
-    memset(&mutex_attr, 0, sizeof(sys_mutex_attr_t));
-    mutex_attr.attr_protocol  = SYS_MUTEX_PROTOCOL_PRIO;
-    mutex_attr.attr_recursive = SYS_MUTEX_ATTR_NOT_RECURSIVE;
-    mutex_attr.attr_pshared   = SYS_MUTEX_ATTR_PSHARED;
-    mutex_attr.attr_adaptive  = SYS_MUTEX_ATTR_NOT_ADAPTIVE;
-    sysMutexCreate(&_log_lock, &mutex_attr);
-#endif
 
     ev = getenv("LOG_MODULES");
     if (ev && ev[0])
@@ -189,9 +166,6 @@ void log_destroy(void)
     }
     logModules = NULL;
 
-#ifdef __lv2ppu__
-    sysMutexDestroy(_log_lock);
-#endif
 }
 
 static void set_log_module_level(log_module_info_t *lm)
@@ -262,10 +236,6 @@ int set_log_file(const char *file)
         _UNLOCK_LOG();
         return -1;
     }
-#ifdef __lv2ppu__
-    sysFsChmod(file, S_IFMT | 0777); 
-#endif
-
     if (log_file && log_file != stdout && log_file != stderr)
     {
         fclose(log_file);
@@ -296,11 +266,7 @@ void log_print(const char *fmt, ...)
     char             line[LINE_BUF_SIZE];
     char             *line_long = NULL;
     uint32_t         nb_tid     = 0, nb;
-#ifdef __lv2ppu__
-    sys_ppu_thread_t me        = 0;
-#else
     int              me     = 0;
-#endif
     time_t           now;
     struct tm        ts;
 
@@ -320,12 +286,7 @@ void log_print(const char *fmt, ...)
                           ts.tm_hour, ts.tm_min, ts.tm_sec);
     }
 
-#ifdef __lv2ppu__
-    sysThreadGetId(&me);
-    nb_tid += snprintf(line + nb_tid, sizeof(line) - nb_tid - 1, "%ld[%p]: ", me, (void *) me);
-#else
     nb_tid += snprintf(line + nb_tid, sizeof(line) - nb_tid - 1, "[%d]: ", me);
-#endif
 
     va_start(ap, fmt);
     nb = nb_tid + vsnprintf(line + nb_tid, sizeof(line) - nb_tid - 1, fmt, ap);

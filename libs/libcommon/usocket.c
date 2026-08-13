@@ -1,5 +1,5 @@
 /*
- * Copyright ¬ 2004-2007 Diego Nehab
+ * Copyright (c) 2004-2007 Diego Nehab
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -360,11 +360,7 @@ const char *socket_hoststrerror(int err) {
     if (err <= 0) return io_strerror(err);
     switch (err) {
         case HOST_NOT_FOUND: return "host not found";
-#ifdef __lv2ppu__
-        default: return strerror(err);
-#else
         default: return hstrerror(err);
-#endif
     }
 }
 

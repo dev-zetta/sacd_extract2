@@ -22,11 +22,7 @@
 #ifndef SCARLETBOOK_OUTPUT_H_INCLUDED
 #define SCARLETBOOK_OUTPUT_H_INCLUDED
 
-#ifdef __lv2ppu__
-#include "dst_decoder_ps3.h"
-#else
 #include <dst_decoder.h>
-#endif
 
 #include "scarletbook.h"
 

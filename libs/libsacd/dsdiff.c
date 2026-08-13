@@ -30,9 +30,7 @@
 #include <time.h>
 #include <logging.h>
 
-#ifdef __lv2ppu__
-#include <sys/file.h>
-#elif defined(WIN32)
+#if defined(WIN32)
 #include <io.h>
 #endif
 
@@ -680,7 +678,7 @@ static int dsdiff_write_frame(scarletbook_output_format_t *ft, const uint8_t *bu
 
 #ifdef _WIN32
             handle->frame_indexes[handle->frame_count - 1].offset = _ftelli64(ft->fd) + DST_FRAME_DATA_CHUNK_SIZE;
-#elif defined(__lv2ppu__) || defined(__APPLE__)
+#elif defined(__APPLE__)
             handle->frame_indexes[handle->frame_count - 1].offset = ftello(ft->fd) + DST_FRAME_DATA_CHUNK_SIZE;
 #else
             

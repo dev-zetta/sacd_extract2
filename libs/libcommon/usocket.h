@@ -1,5 +1,5 @@
 /*
- * Copyright ¬ 2004-2007 Diego Nehab
+ * Copyright (c) 2004-2007 Diego Nehab
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -41,21 +41,14 @@
 /* struct timeval */
 #include <sys/time.h>
 /* gethostbyname and gethostbyaddr functions */
-#ifdef __lv2ppu__
-#include <net/netdb.h>
-#include <net/select.h>
-#else
 #include <netdb.h>
-#endif
 /* sigpipe handling */
 #include <signal.h>
 /* IP stuff*/
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#ifndef __lv2ppu__
 /* TCP options (nagle algorithm disable) */
 #include <netinet/tcp.h>
-#endif
 
 typedef int t_socket;
 typedef t_socket *p_socket;
