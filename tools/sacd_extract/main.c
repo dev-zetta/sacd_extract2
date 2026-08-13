@@ -1570,7 +1570,15 @@ Err_close:                  scarletbook_close(handle);
 
                             file_path = make_filename(NULL, NULL, album_filename, "dff");
 
-							int rez_cuesheet= write_cue_sheet(handle, file_path, area_idx, cue_file_path_unique);
+                            int rez_cuesheet;
+                            if (!opts.concatenate && opts.output_dsf)
+                                rez_cuesheet = write_track_cue_sheet(handle, "dsf", area_idx, cue_file_path_unique,
+                                                                     opts.select_tracks ? opts.selected_tracks : NULL);
+                            else if (!opts.concatenate && opts.output_dsdiff && !opts.output_dsdiff_em)
+                                rez_cuesheet = write_track_cue_sheet(handle, "dff", area_idx, cue_file_path_unique,
+                                                                     opts.select_tracks ? opts.selected_tracks : NULL);
+                            else
+                                rez_cuesheet = write_cue_sheet(handle, file_path, area_idx, cue_file_path_unique);
 							if(rez_cuesheet != -1)
 								fwprintf(stdout, L"\n\nWe are done exporting CUE sheet. \n");
 								else

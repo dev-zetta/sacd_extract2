@@ -1,3 +1,15 @@
+Version: sacd_extract 0.4.3 (2026-08-13)
+
+- fixed CUE sheets produced alongside per-track DSF/DSDIFF extraction to
+  reference the actual output files instead of a nonexistent album DFF;
+- use file-relative indices for track-file CUE layouts, preserve the first
+  track pregap when pauses are included, and omit unselected track references;
+- retained the single-file, disc-relative CUE layout for DSDIFF Edit Masters.
+- updated project links and release metadata for the renamed
+  `dev-zetta/sacd_extract2` GitHub repository.
+
+----------------------------------------------------------------------------------
+
 Version: sacd_extract 0.4.2 (2026-08-13)
 
 - made option parsing independent of argument position, including with

@@ -1,5 +1,7 @@
 # sacd_extract
 
+Project repository: [github.com/dev-zetta/sacd_extract2](https://github.com/dev-zetta/sacd_extract2)
+
 `sacd_extract` is a command-line tool for inspecting readable SACD images and
 extracting their audio and metadata on Linux. It can write stereo or
 multichannel tracks as DSF or DSDIFF, decode DST during extraction, export an
@@ -37,6 +39,8 @@ sudo apt-get install build-essential cmake
 Configure and build out of tree:
 
 ```bash
+git clone https://github.com/dev-zetta/sacd_extract2.git
+cd sacd_extract2
 cmake -S tools/sacd_extract -B build/sacd_extract \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build/sacd_extract --parallel
@@ -50,9 +54,10 @@ build/sacd_extract/sacd_extract --version
 build/sacd_extract/sacd_extract --help
 ```
 
-Tagged releases provide a ready-to-run `sacd_extract-linux-x86_64.tar.gz`
-archive and matching SHA-256 checksum. The packaged executable does not depend
-on libxml2; on Linux it only requires the standard C runtime.
+[Tagged releases](https://github.com/dev-zetta/sacd_extract2/releases) provide
+a ready-to-run `sacd_extract-linux-x86_64.tar.gz` archive and matching SHA-256
+checksum. The packaged executable does not depend on libxml2; on Linux it only
+requires the standard C runtime.
 
 ## Usage
 
@@ -109,6 +114,12 @@ ISO or DSDIFF Edit Master output.
 | `--log-level LEVEL` | Select `error`, `warning`, `notice`, `info`, or `debug` |
 
 Run `sacd_extract --help` for the complete option list.
+
+For individual DSF or DSDIFF extraction, each generated CUE `FILE` entry names
+the corresponding track file and uses file-relative indices. Edit Master output
+retains the traditional single-file, disc-relative CUE layout. The `WAVE` token
+is retained as the widely supported CUE audio-file convention; strict CDRWIN
+CUE syntax does not define native DSF or DSDIFF file types.
 
 ## Configuration
 

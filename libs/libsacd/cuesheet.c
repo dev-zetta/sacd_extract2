@@ -45,9 +45,30 @@ static char *cue_escape(const char *src)
     return ret;
 }
 
-int write_cue_sheet(scarletbook_handle_t *handle, const char *filename, int area_idx, char *cue_filename)
+static void write_track_metadata(FILE *fd, scarletbook_handle_t *handle,
+                                 int area_idx, int track, int cue_track)
 {
-   FILE *fd;
+    fprintf(fd, "  TRACK %02d AUDIO\n", cue_track);
+
+    if (handle->area[area_idx].area_track_text[track].track_type_title)
+    {
+        fprintf(fd, "      TITLE \"%s\"\n", cue_escape(handle->area[area_idx].area_track_text[track].track_type_title));
+    }
+
+    if (handle->area[area_idx].area_track_text[track].track_type_performer)
+    {
+        fprintf(fd, "      PERFORMER \"%s\"\n", cue_escape(handle->area[area_idx].area_track_text[track].track_type_performer));
+    }
+
+    if (*handle->area[area_idx].area_isrc_genre->isrc[track].country_code)
+    {
+        fprintf(fd, "      ISRC %s\n", cue_escape(substr(handle->area[area_idx].area_isrc_genre->isrc[track].country_code, 0, 12)));
+    }
+}
+
+static FILE *open_cue_file(const char *cue_filename)
+{
+    FILE *fd;
 
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
     char filename_long[MAX_BUFF_FULL_PATH_LEN];
@@ -65,9 +86,17 @@ int write_cue_sheet(scarletbook_handle_t *handle, const char *filename, int area
     fd = fopen(cue_filename, "wb");
 #endif
 
+    return fd;
+}
+
+static FILE *start_cue_sheet(scarletbook_handle_t *handle, int area_idx,
+                             const char *cue_filename)
+{
+    FILE *fd = open_cue_file(cue_filename);
+
     if (fd == NULL)
     {
-        return -1;
+        return NULL;
     }
 
     // Write UTF-8 BOM
@@ -122,6 +151,15 @@ int write_cue_sheet(scarletbook_handle_t *handle, const char *filename, int area
         fprintf(fd, "CATALOG \"%s\"\n", cue_escape(substr(handle->master_toc->disc_catalog_number, 0, 16)));
     }
 
+    return fd;
+}
+
+int write_cue_sheet(scarletbook_handle_t *handle, const char *filename, int area_idx, char *cue_filename)
+{
+    FILE *fd = start_cue_sheet(handle, area_idx, cue_filename);
+    if (!fd)
+        return -1;
+
     fprintf(fd, "FILE \"%s\" WAVE\n", cue_escape(filename));
     {
         int track, track_count = handle->area[area_idx].area_toc->track_count;
@@ -131,22 +169,7 @@ int write_cue_sheet(scarletbook_handle_t *handle, const char *filename, int area
         {
             area_tracklist_time_t *time = &handle->area[area_idx].area_tracklist_time->start[track];
 
-            fprintf(fd, "  TRACK %02d AUDIO\n", track + 1);
-            
-            if (handle->area[area_idx].area_track_text[track].track_type_title)
-            {
-                fprintf(fd, "      TITLE \"%s\"\n", cue_escape(handle->area[area_idx].area_track_text[track].track_type_title));
-            }
-
-            if (handle->area[area_idx].area_track_text[track].track_type_performer)
-            {
-                fprintf(fd, "      PERFORMER \"%s\"\n", cue_escape(handle->area[area_idx].area_track_text[track].track_type_performer));
-            }
-
-            if (*handle->area[area_idx].area_isrc_genre->isrc[track].country_code)
-            {
-                fprintf(fd, "      ISRC %s\n", cue_escape(substr(handle->area[area_idx].area_isrc_genre->isrc[track].country_code, 0, 12)));
-            }
+            write_track_metadata(fd, handle, area_idx, track, track + 1);
 
             if ((uint64_t) TIME_FRAMECOUNT(&handle->area[area_idx].area_tracklist_time->start[track]) > prev_abs_end)
             {
@@ -167,5 +190,60 @@ int write_cue_sheet(scarletbook_handle_t *handle, const char *filename, int area
 
     fclose(fd);
 
+    return 0;
+}
+
+int write_track_cue_sheet(scarletbook_handle_t *handle, const char *extension,
+                          int area_idx, char *cue_filename,
+                          const uint8_t *selected_tracks)
+{
+    FILE *fd = start_cue_sheet(handle, area_idx, cue_filename);
+    int track_count;
+    int cue_track = 0;
+
+    if (!fd)
+        return -1;
+
+    track_count = handle->area[area_idx].area_toc->track_count;
+    for (int track = 0; track < track_count; ++track)
+    {
+        if (selected_tracks && !selected_tracks[track])
+            continue;
+
+        char *music_filename = get_music_filename(handle, area_idx, track, "");
+        char *track_filename;
+        if (!music_filename)
+        {
+            fclose(fd);
+            return -1;
+        }
+        track_filename = make_filename(NULL, NULL, music_filename, extension);
+        free(music_filename);
+        if (!track_filename)
+        {
+            fclose(fd);
+            return -1;
+        }
+
+        fprintf(fd, "FILE \"%s\" WAVE\n", cue_escape(track_filename));
+        free(track_filename);
+        write_track_metadata(fd, handle, area_idx, track, ++cue_track);
+
+        if (track == 0 && handle->audio_frame_trimming == 0)
+        {
+            uint64_t start = TIME_FRAMECOUNT(&handle->area[area_idx].area_tracklist_time->start[track]);
+            if (start > 0)
+            {
+                int seconds = (int)(start / SACD_FRAME_RATE);
+                fprintf(fd, "      INDEX 00 00:00:00\n");
+                fprintf(fd, "      INDEX 01 %02d:%02d:%02d\n",
+                        seconds / 60, seconds % 60, (int)(start % SACD_FRAME_RATE));
+                continue;
+            }
+        }
+        fprintf(fd, "      INDEX 01 00:00:00\n");
+    }
+
+    fclose(fd);
     return 0;
 }

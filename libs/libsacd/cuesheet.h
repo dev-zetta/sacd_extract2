@@ -25,5 +25,7 @@
 #include "scarletbook.h"
 
 int write_cue_sheet(scarletbook_handle_t *, const char *, int, char *);
+int write_track_cue_sheet(scarletbook_handle_t *, const char *, int, char *,
+                          const uint8_t *);
 
 #endif

@@ -53,7 +53,7 @@ that text. Those bytes therefore cannot be decoded content from this track.
 
 `scarletbook_output.c` previously allocated a 1 MiB buffer for every output and
 passed it to `setvbuf()`. The feature was re-enabled by upstream commit
-[b84c45f2](https://github.com/dev-zetta/sacd-ripper/commit/b84c45f2d297816ed468ad923213a7749f7c055e)
+[b84c45f2](https://github.com/dev-zetta/sacd_extract2/commit/b84c45f2d297816ed468ad923213a7749f7c055e)
 (`reactivated write cache`). A
 corrupted buffer could consequently be flushed as a complete 1 MiB region while
 leaving every DSF size and metadata field valid.
@@ -69,9 +69,9 @@ the intended bits and removes the undefined behavior.
 
 ## Validation
 
-The imported source was verified as upstream `dev-zetta/sacd-ripper` master at
+The imported source was verified as `dev-zetta/sacd_extract2` master at
 commit
-[c9af7d4](https://github.com/dev-zetta/sacd-ripper/commit/c9af7d40a2a186aee1763ddc4c73f60c32270f8c)
+[c9af7d4](https://github.com/dev-zetta/sacd_extract2/commit/c9af7d40a2a186aee1763ddc4c73f60c32270f8c)
 before applying the fix.
 
 - Release and AddressSanitizer/UndefinedBehaviorSanitizer builds complete.
