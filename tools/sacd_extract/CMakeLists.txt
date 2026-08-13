@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(sacd_extract VERSION 0.4.0 LANGUAGES C)
+project(sacd_extract VERSION 0.4.1 LANGUAGES C)
 
 include(CTest)
 
@@ -76,7 +76,6 @@ include_directories("../../libs/libid3")
 include_directories("../../libs/libsacd")
 
 
-find_package(LibXml2 REQUIRED)
 find_package(Threads REQUIRED)
 
 # Extra flags for GCC
@@ -156,15 +155,15 @@ add_executable(sacd_extract ${main_headers} ${main_sources})
 target_link_libraries(sacd_extract PRIVATE sacd_extract_core)
 
 if(WIN32)
-    add_definitions(-D_FILE_OFFSET_BITS=64 -DUNICODE -D_UNICODE -DIN_LIBXML)
+    add_definitions(-D_FILE_OFFSET_BITS=64 -DUNICODE -D_UNICODE)
     target_compile_options(${PROJECT_NAME} PRIVATE -municode)
-    target_link_libraries(sacd_extract_core PUBLIC -lpthread -lws2_32 -liconv -lxml2 -lbcrypt)
+    target_link_libraries(sacd_extract_core PUBLIC -lpthread -lws2_32 -liconv -lbcrypt)
 elseif(APPLE)
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(sacd_extract_core PUBLIC -liconv -lxml2)
+    target_link_libraries(sacd_extract_core PUBLIC -liconv)
 else()
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(sacd_extract_core PUBLIC LibXml2::LibXml2 Threads::Threads)
+    target_link_libraries(sacd_extract_core PUBLIC Threads::Threads)
 endif()
 
 if(BUILD_TESTING)

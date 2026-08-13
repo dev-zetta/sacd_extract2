@@ -14,6 +14,7 @@ add_sacd_unit_test(test_logging test_logging.c)
 add_sacd_unit_test(test_frame_recovery test_frame_recovery.c)
 add_sacd_unit_test(test_cuesheet test_cuesheet.c)
 add_sacd_unit_test(test_toc_recovery test_toc_recovery.c)
+add_sacd_unit_test(test_xml_writer test_xml_writer.c)
 
 add_test(NAME test_cli_config_precedence
          COMMAND ${CMAKE_COMMAND}

@@ -25,12 +25,13 @@ readable SACD ISO image. A compatible network source can also be supplied as
 
 ## Build on Linux
 
-Install a C compiler, CMake 3.16 or newer, and the libxml2 development files.
+Install a C compiler and CMake 3.16 or newer. XML export uses the bundled
+write-only implementation and has no libxml2 dependency.
 For Debian and Ubuntu:
 
 ```bash
 sudo apt-get update
-sudo apt-get install build-essential cmake libxml2-dev
+sudo apt-get install build-essential cmake
 ```
 
 Configure and build out of tree:
@@ -48,6 +49,10 @@ build with:
 build/sacd_extract/sacd_extract --version
 build/sacd_extract/sacd_extract --help
 ```
+
+Tagged releases provide a ready-to-run `sacd_extract-linux-x86_64.tar.gz`
+archive and matching SHA-256 checksum. The packaged executable does not depend
+on libxml2; on Linux it only requires the standard C runtime.
 
 ## Usage
 
@@ -191,8 +196,10 @@ corruption issue is documented in
 
 ## Continuous integration
 
-The GitHub Actions workflow builds and tests the Release configuration before
-publishing the executable, and runs the unit suite again under ASan and UBSan.
+The GitHub Actions workflow builds and tests the Release configuration on
+Ubuntu 22.04, verifies that libxml is absent from its runtime dependencies,
+and attaches the executable archive and checksum to tagged GitHub Releases.
+It also runs the unit suite under ASan and UBSan.
 
 ## License
 

@@ -1,14 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <version.h>
-#include <libxml/xmlreader.h>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
-#include <libxml/encoding.h>
-#include <libxml/xmlwriter.h>
-#include <libxml/xmlmemory.h>
 #include "scarletbook.h"
 #include "scarletbook_xml.h"
+#include "xml_writer.h"
 #include "utils.h"
 
 //static void streamFile(const char *filename);
@@ -1174,4 +1169,3 @@ void sacdXmlwriterFilename(scarletbook_handle_t *handle, const char *uri)
 
     xmlFreeTextWriter(writer);
 }
-
