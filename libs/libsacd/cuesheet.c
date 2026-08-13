@@ -72,15 +72,33 @@ static FILE *open_cue_file(const char *cue_filename)
 
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
     char filename_long[MAX_BUFF_FULL_PATH_LEN];
-	memset(filename_long, '\0', MAX_BUFF_FULL_PATH_LEN);
-    strcpy(filename_long,"\\\\?\\");
-    strncat(filename_long,cue_filename, MAX_BUFF_FULL_PATH_LEN - 8);
-
+    const char *filename = cue_filename;
     wchar_t *wide_filename;
 
-    CHAR2WCHAR(wide_filename, filename_long);
+    /* The Win32 long-path prefix is valid only for absolute paths. Keep
+     * relative paths relative, and translate UNC paths to the required
+     * \\?\UNC\server\share form. */
+    if (cue_filename[0] == '\\' && cue_filename[1] == '\\')
+    {
+        snprintf(filename_long, sizeof(filename_long), "\\\\?\\UNC\\%s",
+                 cue_filename + 2);
+        filename = filename_long;
+    }
+    else if (((cue_filename[0] >= 'A' && cue_filename[0] <= 'Z') ||
+              (cue_filename[0] >= 'a' && cue_filename[0] <= 'z')) &&
+             cue_filename[1] == ':' &&
+             (cue_filename[2] == '\\' || cue_filename[2] == '/'))
+    {
+        snprintf(filename_long, sizeof(filename_long), "\\\\?\\%s",
+                 cue_filename);
+        filename = filename_long;
+    }
+
+    CHAR2WCHAR(wide_filename, filename);
+    if (wide_filename == NULL)
+        return NULL;
     fd = _wfopen(wide_filename, L"wb");
-	
+
     free(wide_filename);
 #else		
     fd = fopen(cue_filename, "wb");
