@@ -60,7 +60,7 @@ typedef struct
     size_t              frame_indexes_allocated;
 
     int                 edit_master;
-} 
+}
 dsdiff_handle_t;
 
 static char *get_mtoc_title_text(scarletbook_handle_t *handle)
@@ -333,14 +333,14 @@ static int calculate_header_and_footer(scarletbook_output_format_t *ft)
 
                 time = &sb_handle->area[ft->area].area_tracklist_time->start[track];
                 abs_frames_start = TIME_FRAMECOUNT(time);
-                track_flags_start = time->track_flags_tmf4 << 0 
+                track_flags_start = time->track_flags_tmf4 << 0
                     | time->track_flags_tmf1 << 1
                     | time->track_flags_tmf2 << 2
                     | time->track_flags_tmf3 << 3;
 
                 time = &sb_handle->area[ft->area].area_tracklist_time->duration[track];
                 abs_frames_stop = abs_frames_start + TIME_FRAMECOUNT(time);
-                track_flags_stop = time->track_flags_tmf4 << 0 
+                track_flags_stop = time->track_flags_tmf4 << 0
                     | time->track_flags_tmf1 << 1
                     | time->track_flags_tmf2 << 2
                     | time->track_flags_tmf3 << 3;
@@ -353,7 +353,7 @@ static int calculate_header_and_footer(scarletbook_output_format_t *ft)
 
                 em_ptr = add_marker_chunk(em_ptr, ft, abs_frames_start, MARK_MARKER_TYPE_TRACKSTART, track_flags_start);
 
-                if (track == sb_handle->area[ft->area].area_toc->track_count - 1 
+                if (track == sb_handle->area[ft->area].area_toc->track_count - 1
                  || (uint64_t) TIME_FRAMECOUNT(&sb_handle->area[ft->area].area_tracklist_time->start[track + 1]) > abs_frames_stop)
                 {
                     em_ptr = add_marker_chunk(em_ptr, ft, abs_frames_stop, MARK_MARKER_TYPE_TRACKSTOP, track_flags_stop);
@@ -399,11 +399,11 @@ static int calculate_header_and_footer(scarletbook_output_format_t *ft)
                 else if (master_text->album_artist_phonetic)
                     c = master_text->album_artist_phonetic;
                 else if (master_text->disc_title)
-                    c = master_text->disc_title; 
+                    c = master_text->disc_title;
                 else if (master_text->disc_title_phonetic)
                     c = master_text->disc_title_phonetic;
                 else if (master_text->album_title)
-                    c = master_text->album_title; 
+                    c = master_text->album_title;
                 else if (master_text->album_title_phonetic)
                     c = master_text->album_title_phonetic;
             }
@@ -438,11 +438,11 @@ static int calculate_header_and_footer(scarletbook_output_format_t *ft)
                 master_text_t *master_text = &sb_handle->master_text;
 
                 if (master_text->album_title)
-                    c = master_text->album_title; 
+                    c = master_text->album_title;
                 else if (master_text->album_title_phonetic)
                     c = master_text->album_title_phonetic;
                 else if (master_text->disc_title)
-                    c = master_text->disc_title; 
+                    c = master_text->disc_title;
                 else if (master_text->disc_title_phonetic)
                     c = master_text->disc_title_phonetic;
             }
@@ -571,9 +571,9 @@ static int dsdiff_create_edit_master(scarletbook_output_format_t *ft)
     ret = calculate_header_and_footer(ft);
     size_t nrw=fwrite(handle->header, 1, handle->header_size, ft->fd);
 	if(nrw !=  handle->header_size)
-	{ 		        
-		LOG(lm_main, LOG_ERROR, ("dsdiff_create_edit_master(): error writing in file %s", ft->filename));
-		return -1;               				
+	{
+		LOG(lm_output, LOG_ERROR, ("dsdiff_create_edit_master(): error writing in file %s", ft->filename));
+		return -1;
 	}
     return ret;
 }
@@ -582,12 +582,12 @@ static int dsdiff_create(scarletbook_output_format_t *ft)
 {
     int ret = calculate_header_and_footer(ft);
     dsdiff_handle_t  *handle = (dsdiff_handle_t *) ft->priv;
-    size_t nrw=fwrite(handle->header, 1, handle->header_size, ft->fd); 
+    size_t nrw=fwrite(handle->header, 1, handle->header_size, ft->fd);
 	if(nrw !=  handle->header_size)
-	{ 		        
-		LOG(lm_main, LOG_ERROR, ("dsdiff_create(0: error writing in file %s", ft->filename));
-		return -1;               				
-	}	
+	{
+		LOG(lm_output, LOG_ERROR, ("dsdiff_create(0: error writing in file %s", ft->filename));
+		return -1;
+	}
     return ret;
 }
 
@@ -597,18 +597,18 @@ static int dsdiff_close(scarletbook_output_format_t *ft)
 
     if (!handle)
         return 0;
-    
+
     if (handle->audio_data_size % 2)
     {
         uint8_t dummy = 0;
 		size_t nrw;
         nrw=fwrite(&dummy, 1, 1, ft->fd);
 		if(nrw != 1)
-		{ 		        
-			LOG(lm_main, LOG_ERROR, ("dsdiff_close(0: error writing in file %s", ft->filename));
-			return -1;               				
+		{
+			LOG(lm_output, LOG_ERROR, ("dsdiff_close(0: error writing in file %s", ft->filename));
+			return -1;
 		}
-			
+
         handle->audio_data_size += 1;
     }
 
@@ -618,19 +618,19 @@ static int dsdiff_close(scarletbook_output_format_t *ft)
     // append the footer
     size_t nrw=fwrite(handle->footer, 1, handle->footer_size, ft->fd);
 	if(nrw !=  handle->footer_size)
-	{ 		        
-		LOG(lm_main, LOG_ERROR, ("dsdiff_close(0: error writing in file %s", ft->filename));
-		return -1;               				
+	{
+		LOG(lm_output, LOG_ERROR, ("dsdiff_close(0: error writing in file %s", ft->filename));
+		return -1;
 	}
-		
+
     // write the final header
     fseek(ft->fd, 0, SEEK_SET);
     nrw=fwrite(handle->header, 1, handle->header_size, ft->fd);
 	if(nrw !=  handle->header_size)
-	{ 		        
-		LOG(lm_main, LOG_ERROR, ("dsdiff_close(0: error writing in file %s", ft->filename));
-		return -1;               				
-	}	
+	{
+		LOG(lm_output, LOG_ERROR, ("dsdiff_close(0: error writing in file %s", ft->filename));
+		return -1;
+	}
 
     if (handle->frame_indexes)
         free(handle->frame_indexes);
@@ -653,9 +653,9 @@ static int dsdiff_write_frame(scarletbook_output_format_t *ft, const uint8_t *bu
         size_t nrw;
         nrw = fwrite(buf, 1, len, ft->fd);
 		if(nrw != len)
-		{ 		        
-			LOG(lm_main, LOG_ERROR, ("dsdiff_write_frame(): error writing in file %s", ft->filename));
-			return -1;               				
+		{
+			LOG(lm_output, LOG_ERROR, ("dsdiff_write_frame(): error writing in file %s", ft->filename));
+			return -1;
 		}
         handle->audio_data_size += nrw;
         return (int)nrw;
@@ -681,10 +681,10 @@ static int dsdiff_write_frame(scarletbook_output_format_t *ft, const uint8_t *bu
 #elif defined(__APPLE__)
             handle->frame_indexes[handle->frame_count - 1].offset = ftello(ft->fd) + DST_FRAME_DATA_CHUNK_SIZE;
 #else
-            
+
             // off64_t ftello64 (FILE *stream) : If the sources are compiled with _FILE_OFFSET_BITS == 64 on a 32 bits machine this function is available under the name ftello and so transparently replaces the old interface.
             //
-    #ifdef _FILE_OFFSET_BITS         
+    #ifdef _FILE_OFFSET_BITS
             handle->frame_indexes[handle->frame_count - 1].offset = ftello(ft->fd) + DST_FRAME_DATA_CHUNK_SIZE;
     #else
             handle->frame_indexes[handle->frame_count - 1].offset = ftello64(ft->fd) + DST_FRAME_DATA_CHUNK_SIZE;
@@ -692,31 +692,31 @@ static int dsdiff_write_frame(scarletbook_output_format_t *ft, const uint8_t *bu
 #endif
 
             nrw = fwrite(&dst_frame_data_chunk, 1, DST_FRAME_DATA_CHUNK_SIZE, ft->fd);
-			
+
 			if(nrw !=DST_FRAME_DATA_CHUNK_SIZE)
-			{ 		        
-				LOG(lm_main, LOG_ERROR, ("dsdiff_write_frame(0: error writing in file %s", ft->filename));
-				return -1;               				
+			{
+				LOG(lm_output, LOG_ERROR, ("dsdiff_write_frame(0: error writing in file %s", ft->filename));
+				return -1;
 			}
-			
+
 			size_t nrw1;
 			nrw1=fwrite(buf, 1, len, ft->fd);
 			if(nrw1 != len)
-			{ 		        
-				LOG(lm_main, LOG_ERROR, ("dsdiff_write_frame(0: error writing in file %s", ft->filename));
-				return -1;               				
+			{
+				LOG(lm_output, LOG_ERROR, ("dsdiff_write_frame(0: error writing in file %s", ft->filename));
+				return -1;
 			}
-			
+
             nrw += nrw1;
             if (len % 2)
             {
                 uint8_t dummy = 0;
 				nrw1=fwrite(&dummy, 1, 1, ft->fd);
 				if(nrw1 != 1)
-				{ 		        
-					LOG(lm_main, LOG_ERROR, ("dsdiff_write_frame(0: error writing in file %s", ft->filename));
-					return -1;               				
-				}				
+				{
+					LOG(lm_output, LOG_ERROR, ("dsdiff_write_frame(0: error writing in file %s", ft->filename));
+					return -1;
+				}
                 nrw += nrw1;
             }
             handle->audio_data_size += nrw;
@@ -725,30 +725,30 @@ static int dsdiff_write_frame(scarletbook_output_format_t *ft, const uint8_t *bu
     }
 }
 
-scarletbook_format_handler_t const * dsdiff_format_fn(void) 
+scarletbook_format_handler_t const * dsdiff_format_fn(void)
 {
-    static scarletbook_format_handler_t handler = 
+    static scarletbook_format_handler_t handler =
     {
-        "Direct Stream Digital Interchange File Format", 
-        "dsdiff", 
-        dsdiff_create, 
+        "Direct Stream Digital Interchange File Format",
+        "dsdiff",
+        dsdiff_create,
         dsdiff_write_frame,
-        dsdiff_close, 
+        dsdiff_close,
         OUTPUT_FLAG_DSD | OUTPUT_FLAG_DST,
         sizeof(dsdiff_handle_t)
     };
     return &handler;
 }
 
-scarletbook_format_handler_t const * dsdiff_edit_master_format_fn(void) 
+scarletbook_format_handler_t const * dsdiff_edit_master_format_fn(void)
 {
-    static scarletbook_format_handler_t handler = 
+    static scarletbook_format_handler_t handler =
     {
-        "Direct Stream Digital Interchange (Edit Master) File Format", 
-        "dsdiff_edit_master", 
-        dsdiff_create_edit_master, 
+        "Direct Stream Digital Interchange (Edit Master) File Format",
+        "dsdiff_edit_master",
+        dsdiff_create_edit_master,
         dsdiff_write_frame,
-        dsdiff_close, 
+        dsdiff_close,
         OUTPUT_FLAG_DSD | OUTPUT_FLAG_DST | OUTPUT_FLAG_EDIT_MASTER,
         sizeof(dsdiff_handle_t)
     };

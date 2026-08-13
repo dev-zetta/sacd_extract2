@@ -22,13 +22,40 @@
 #ifndef SCARLETBOOK_OUTPUT_H_INCLUDED
 #define SCARLETBOOK_OUTPUT_H_INCLUDED
 
+#include <stddef.h>
+#include <stdio.h>
+
 #include <dst_decoder.h>
+#include <stdatomic.h>
 
 #include "scarletbook.h"
 
 // forward declaration
 typedef struct scarletbook_output_format_t scarletbook_output_format_t;
 typedef struct scarletbook_output_s scarletbook_output_t;
+
+typedef enum scarletbook_output_error_e
+{
+    SACD_OUTPUT_ERROR_NONE = 0,
+    SACD_OUTPUT_ERROR_MEDIA = 1,
+    SACD_OUTPUT_ERROR_CREATE = 2,
+    SACD_OUTPUT_ERROR_WRITE = 3,
+    SACD_OUTPUT_ERROR_FINALIZE = 4,
+    SACD_OUTPUT_ERROR_INPUT_FATAL = 5,
+    SACD_OUTPUT_ERROR_INTERRUPTED = 6
+} scarletbook_output_error_t;
+
+typedef enum scarletbook_output_result_e
+{
+    SACD_OUTPUT_RESULT_CLEAN = 0,
+    SACD_OUTPUT_RESULT_PARTIAL = 1,
+    SACD_OUTPUT_RESULT_FATAL = 2,
+    SACD_OUTPUT_RESULT_INTERRUPTED = 130
+} scarletbook_output_result_t;
+
+void scarletbook_output_format_set_error(scarletbook_output_format_t *format,
+                                         scarletbook_output_error_t error_number,
+                                         const char *error_string);
 
 enum
 {
@@ -39,7 +66,7 @@ enum
 };
 
 // Handler structure defined by each output format.
-typedef struct scarletbook_format_handler_t 
+typedef struct scarletbook_format_handler_t
 {
     char const *description;
     char const *name;
@@ -48,12 +75,12 @@ typedef struct scarletbook_format_handler_t
     int (*stopwrite)(scarletbook_output_format_t *ft);
     int         flags;
     size_t      priv_size;
-} 
+}
 scarletbook_format_handler_t;
 
 typedef int (*fwprintf_callback_t)(FILE *stream, const wchar_t *format, ...);
 
-struct scarletbook_output_format_t 
+struct scarletbook_output_format_t
 {
     int                             area;
     int                             track;
@@ -61,6 +88,7 @@ struct scarletbook_output_format_t
     uint32_t                        length_lsn;
     uint32_t                        current_lsn;
     char                           *filename;
+    char                           *working_filename;
 
     int                             channel_count;
 
@@ -74,8 +102,12 @@ struct scarletbook_output_format_t
     scarletbook_format_handler_t    handler;
     void                           *priv;
 
-    int                             error_nr;
+    int                             error_number;
     char                            error_str[256];
+    uint32_t                        max_media_errors;
+    atomic_uint                     media_error_count;
+    atomic_int                      abort_current;
+    int                             partial;
 
     dst_decoder_t                  *dst_decoder;
 
@@ -83,7 +115,7 @@ struct scarletbook_output_format_t
     fwprintf_callback_t             cb_fwprintf;
 
     struct list_head                siblings;
-}; 
+};
 
 typedef void (*stats_progress_callback_t)(uint32_t stats_total_sectors, uint32_t stats_total_sectors_processed,
                                           uint32_t stats_current_file_total_sectors, uint32_t stats_current_file_sectors_processed);
@@ -96,6 +128,8 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *, int, int, char *, c
 int scarletbook_output_enqueue_raw_sectors(scarletbook_output_t *, int, int, char *, char *);
 int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, int area, int track, char *file_path, char *fmt, int dsd_encoded_export, int last_track);
 int scarletbook_output_start(scarletbook_output_t *);
+void scarletbook_output_set_max_read_errors(scarletbook_output_t *, uint32_t);
+int scarletbook_output_result(scarletbook_output_t *);
 void scarletbook_output_interrupt(scarletbook_output_t *);
 int scarletbook_output_is_busy(scarletbook_output_t *);
 

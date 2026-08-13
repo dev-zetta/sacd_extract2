@@ -28,10 +28,18 @@
 extern "C" {
 #endif
 
-void init_logging(int yes);
-void destroy_logging();
+void init_logging(int enabled, log_module_level_t level, const char *requested_path);
+int logging_open_session(const char *directory);
+const char *logging_file_path(void);
+log_module_level_t logging_parse_level(const char *name, int *valid);
+void destroy_logging(void);
 
-extern log_module_info_t * lm_main; 
+extern log_module_info_t *lm_main;
+extern log_module_info_t *lm_input;
+extern log_module_info_t *lm_toc;
+extern log_module_info_t *lm_output;
+extern log_module_info_t *lm_decoder;
+extern log_module_info_t *lm_metadata;
 
 #ifdef __cplusplus
 };

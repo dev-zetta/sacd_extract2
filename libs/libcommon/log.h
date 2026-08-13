@@ -38,109 +38,29 @@
 #define __LOG_H__
 
 #include <stdint.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
-** log.h -- Declare interfaces to the Logging service
-**
-** To use the service from a client program, you should create a
-** PRLogModuleInfo structure by calling PR_NewLogModule(). After
-** creating the LogModule, you can write to the log using the LOG()
-** macro.
-**
-** Initialization of the log service is handled by log_init().
-**
-** At execution time, you must enable the log service. To enable the
-** log service, set the environment variable: LOG_MODULES
-** variable.
-**
-** LOG_MODULES variable has the form:
-**
-**     <moduleName>:<value>[, <moduleName>:<value>]*
-**
-** Where:
-**  <moduleName> is the name passed to PR_NewLogModule().
-**  <value> is a numeric constant, e.g. 5. This value is the maximum
-** value of a log event, enumerated by PRLogModuleLevel, that you want
-** written to the log.
-**
-** For example: to record all events of greater value than or equal to
-** LOG_ERROR for a LogModule names "gizmo", say:
-**
-** set LOG_MODULES=gizmo:2
-**
-** Note that you must specify the numeric value of LOG_ERROR.
-**
-** Special LogModule names are provided for controlling the log
-** service at execution time. These controls should be set in the
-** LOG_MODULES environment variable at execution time to affect
-** the log service for your application.
-**
-** The special LogModule "all" enables all LogModules. To enable all
-** LogModule calls to LOG(), say:
-**
-** set LOG_MODULES=all:5
-**
-** The special LogModule name "sync" tells the log service to do
-** unbuffered logging.
-**
-** The special LogModule name "bufsize:<size>" tells the log service 
-** to set the log buffer to <size>.
-**
-** The environment variable LOG_FILE specifies the log file to use
-** unless the default of "stderr" is acceptable. For MS Windows
-** systems, LOG_FILE can be set to a special value: "WinDebug"
-** (case sensitive). This value causes LOG() output to be written
-** using the Windows API OutputDebugString(). OutputDebugString()
-** writes to the debugger window; some people find this helpful.
-**
-**
-** To put log messages in your programs, use the LOG macro:
-**
-**     LOG(<module>, <level>, (<printfString>, <args>*));
-**
-** Where <module> is the address of a PRLogModuleInfo structure, and
-** <level> is one of the levels defined by the enumeration:
-** PRLogModuleLevel. <args> is a printf() style of argument list. That
-** is: (fmtstring, ...).
-**
-** Example:
-**
-** main() {
-**    int one = 1;
-**    PRLogModuleInfo * myLm = PR_NewLogModule("gizmo");
-**    LOG( myLm, LOG_ALWAYS, ("Log this! %d\n", one));
-**    return;
-** }
-**
-** Note the use of printf() style arguments as the third agrument(s) to
-** LOG().
-**
-** After compiling and linking you application, set the environment:
-**
-** set LOG_MODULES=gizmo:5
-** set LOG_FILE=logfile.txt
-**
-** When you execute your application, the string "Log this! 1" will be
-** written to the file "logfile.txt".
-**
-*/
+/* Session logger interface. Callers retain the historical
+ * LOG(module, level, (format, ...)) syntax, while configuration and the
+ * destination are selected explicitly by the command line/configuration
+ * layer. Messages emitted before the final path is known are buffered. */
 
 typedef enum log_module_level_t
 {
-    LOG_NONE    = 0,                /* nothing */
-    LOG_ALWAYS  = 1,                /* always printed */
-    LOG_ERROR   = 2,                /* error messages */
-    LOG_WARNING = 3,                /* warning messages */
-    LOG_DEBUG   = 4,                /* debug messages */
-                                    
-    LOG_NOTICE  = LOG_DEBUG,        /* notice messages */
-    LOG_WARN    = LOG_WARNING,      /* warning messages */
-    LOG_MIN     = LOG_DEBUG,        /* minimal debugging messages */
-    LOG_MAX     = LOG_DEBUG         /* maximal debugging messages */
+    LOG_NONE    = 0,
+    LOG_ERROR   = 1,
+    LOG_WARNING = 2,
+    LOG_NOTICE  = 3,
+    LOG_INFO    = 4,
+    LOG_DEBUG   = 5,
+    LOG_ALWAYS  = 6,
+    LOG_WARN    = LOG_WARNING,
+    LOG_MIN     = LOG_ERROR,
+    LOG_MAX     = LOG_DEBUG
 } log_module_level_t;
 
 /*
@@ -171,8 +91,7 @@ void log_destroy(void);
 log_module_info_t* create_log_module(const char *name);
 
 /*
-** Set the file to use for logging. Returns PR_FALSE if the file cannot
-** be created
+** Set the session log path. Returns zero if the file cannot be created.
 */
 int set_log_file(const char *name);
 
@@ -183,12 +102,22 @@ int set_log_file(const char *name);
 void set_log_buffering(int buffer_size);
 
 /*
-** Print a string to the log. "fmt" is a PR_snprintf format type. All
-** messages printed to the log are preceeded by the name of the thread
-** and a time stamp. Also, the routine provides a missing newline if one
-** is not provided.
+** Print a record with the current thread-local module and severity.
 */
 void log_print(const char *fmt, ...);
+
+/* Set the module and severity for the immediately following log_print().
+ * The context is thread-local so the legacy LOG(module, level, (args)) call
+ * form remains safe when decoder and output threads log concurrently. */
+void log_set_context(log_module_info_t *module, log_module_level_t level);
+
+/* Configure the process logger. Messages are buffered until set_log_file()
+ * selects the final session path. */
+void log_configure(int enabled, log_module_level_t level);
+int log_is_enabled(void);
+const char *log_level_name(log_module_level_t level);
+typedef int (*log_time_provider_t)(struct timespec *now);
+void log_set_time_provider(log_time_provider_t provider);
 
 /*
 ** Flush the log to its file.
@@ -203,7 +132,7 @@ void log_assert(const char *s, const char *file, int ln);
 #define LOGGING    1
 
 #define LOG_TEST(_module, _level) \
-    ((_module)->level >= (_level))
+    ((_module) != NULL && ((_level) == LOG_ALWAYS || (_module)->level >= (_level)))
 
 /*
 ** Log something.
@@ -212,12 +141,13 @@ void log_assert(const char *s, const char *file, int ln);
 **    "args" is a variable length list of arguments to print, in the following
 **       format:  ("printf style format string", ...)
 */
-#define LOG(_module, _level, _args)  \
-    {                                   \
-    if (LOG_TEST(_module, _level)) { \
-        log_print _args;              \
-    }                                   \
-    }
+#define LOG(_module, _level, _args)       \
+    do {                                  \
+        if (LOG_TEST(_module, _level)) {  \
+            log_set_context((_module), (_level)); \
+            log_print _args;              \
+        }                                 \
+    } while (0)
 
 #else /* defined(DEBUG) || defined(FORCE_LOG) */
 

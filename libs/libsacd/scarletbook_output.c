@@ -44,6 +44,9 @@
 #include "scarletbook_output.h"
 #include "scarletbook_read.h"
 #include "sacd_reader.h"
+#include "media_recovery.h"
+#include "output_path.h"
+#include "output_status.h"
 
 
 extern scarletbook_format_handler_t const * dsdiff_format_fn(void);
@@ -51,15 +54,26 @@ extern scarletbook_format_handler_t const * dsdiff_edit_master_format_fn(void);
 extern scarletbook_format_handler_t const * dsf_format_fn(void);
 extern scarletbook_format_handler_t const * iso_format_fn(void);
 
-typedef const scarletbook_format_handler_t *(*sacd_output_format_fn_t)(void); 
-static sacd_output_format_fn_t s_sacd_output_format_fns[] = 
+typedef const scarletbook_format_handler_t *(*sacd_output_format_fn_t)(void);
+static sacd_output_format_fn_t s_sacd_output_format_fns[] =
 {
     dsdiff_format_fn,
     dsdiff_edit_master_format_fn,
     dsf_format_fn,
     iso_format_fn,
     NULL
-}; 
+};
+
+void scarletbook_output_format_set_error(scarletbook_output_format_t *format,
+                                         scarletbook_output_error_t error_number,
+                                         const char *error_string)
+{
+    if (!format)
+        return;
+    format->error_number = error_number;
+    snprintf(format->error_str, sizeof(format->error_str), "%s",
+             error_string ? error_string : "output error");
+}
 
 struct scarletbook_output_s
 {
@@ -84,7 +98,17 @@ struct scarletbook_output_s
     fwprintf_callback_t fwprintf_callback;
 
     scarletbook_handle_t *sb_handle;
+    uint32_t max_media_errors;
+    int result;
+    int interrupted;
 };
+
+static void init_output_format(scarletbook_output_t *output, scarletbook_output_format_t *ft)
+{
+    ft->max_media_errors = output->max_media_errors;
+    atomic_init(&ft->media_error_count, 0);
+    atomic_init(&ft->abort_current, 0);
+}
 
 static scarletbook_format_handler_t const * find_output_format(char const * name)
 {
@@ -92,14 +116,14 @@ static scarletbook_format_handler_t const * find_output_format(char const * name
     while (s_sacd_output_format_fns[i] != NULL)
     {
         scarletbook_format_handler_t const * handler = s_sacd_output_format_fns[i]();
-        if (!strcasecmp(handler->name, name)) 
+        if (!strcasecmp(handler->name, name))
         {
             return handler;
         }
         i++;
     }
     return NULL;
-} 
+}
 
 static void destroy_ripping_queue(scarletbook_output_t *output)
 {
@@ -111,6 +135,8 @@ static void destroy_ripping_queue(scarletbook_output_t *output)
         node_ptr = output->ripping_queue.next;
         output_format_ptr = list_entry(node_ptr, scarletbook_output_format_t, siblings);
         list_del(node_ptr);
+        free(output_format_ptr->filename);
+        free(output_format_ptr->working_filename);
         free(output_format_ptr);
     }
 }
@@ -125,6 +151,7 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int
     {
         output_format_ptr = calloc(sizeof(scarletbook_output_format_t), 1);
         output_format_ptr->sb_handle = sb_handle;
+        init_output_format(output, output_format_ptr);
         output_format_ptr->cb_fwprintf = output->fwprintf_callback;
         output_format_ptr->area = area;
         output_format_ptr->track = track;
@@ -133,7 +160,7 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int
         output_format_ptr->channel_count = sb_handle->area[area].area_toc->channel_count;
         output_format_ptr->dst_encoded_import = sb_handle->area[area].area_toc->frame_format == FRAME_FORMAT_DST;
         output_format_ptr->dsd_encoded_export = dsd_encoded_export;
-        
+
 
         if (handler->flags & OUTPUT_FLAG_EDIT_MASTER)
         {
@@ -179,7 +206,7 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int
             if (!(output_format_ptr->start_lsn >= sb_handle->area[area].area_toc->track_start) ||
                 !(output_format_ptr->start_lsn <= sb_handle->area[area].area_toc->track_end)    )
             {
-                LOG(lm_main, LOG_NOTICE, ("Queuing error: track_start_lsn is not is area! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
+                LOG(lm_output, LOG_NOTICE, ("Queuing error: track_start_lsn is not is area! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
                 output_format_ptr->cb_fwprintf(stderr, L"\n Queuing error: track_start_lsn is not is area! area: %d, track %d, start_lsn: %d, length_lsn: %d\n", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn);
             }
 
@@ -189,7 +216,7 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int
             {
                if( !(sb_handle->area[area].area_tracklist_offset->track_start_lsn[track + 1] >= sb_handle->area[area].area_tracklist_offset->track_start_lsn[track] + sb_handle->area[area].area_tracklist_offset->track_length_lsn[track] - 1))
                  {
-                     LOG(lm_main, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
+                     LOG(lm_output, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
                      output_format_ptr->cb_fwprintf(stderr, L"\n Queuing error: equation not valid(beetween track_start_lsn and track_length_lsn)! area: %d, track %d, start_lsn: %d, length_lsn: %d\n", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn);
                  }
             }
@@ -197,13 +224,13 @@ int scarletbook_output_enqueue_track(scarletbook_output_t *output, int area, int
             {
                 if (!(sb_handle->area[area].area_toc->track_end >= sb_handle->area[area].area_tracklist_offset->track_start_lsn[track] + sb_handle->area[area].area_tracklist_offset->track_length_lsn[track] - 1))
                 {
-                    LOG(lm_main, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
+                    LOG(lm_output, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
                     output_format_ptr->cb_fwprintf(stderr, L"\n Queuing error: equation not valid(beetween track_start_lsn and track_length_lsn)! area: %d, track %d, start_lsn: %d, length_lsn: %d\n", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn);
                 }
             }
         }
 
-        LOG(lm_main, LOG_NOTICE, ("Queuing: %s, area: %d, track %d, start_lsn: %d, length_lsn: %d, dst_encoded_import: %d, dsd_encoded_export: %d", file_path, area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn, output_format_ptr->dst_encoded_import, output_format_ptr->dsd_encoded_export));
+        LOG(lm_output, LOG_NOTICE, ("Queuing: %s, area: %d, track %d, start_lsn: %d, length_lsn: %d, dst_encoded_import: %d, dsd_encoded_export: %d", file_path, area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn, output_format_ptr->dst_encoded_import, output_format_ptr->dsd_encoded_export));
 
         list_add_tail(&output_format_ptr->siblings, &output->ripping_queue);
 
@@ -222,13 +249,14 @@ int scarletbook_output_enqueue_raw_sectors(scarletbook_output_t *output, int sta
     {
         output_format_ptr = calloc(sizeof(scarletbook_output_format_t), 1);
         output_format_ptr->sb_handle = sb_handle;
+        init_output_format(output, output_format_ptr);
         output_format_ptr->cb_fwprintf = output->fwprintf_callback;
         output_format_ptr->handler = *handler;
         output_format_ptr->filename = strdup(file_path);
         output_format_ptr->start_lsn = start_lsn;
         output_format_ptr->length_lsn = length_lsn;
 
-        LOG(lm_main, LOG_NOTICE, ("Queuing raw: %s, start_lsn: %d, length_lsn: %d", file_path, start_lsn, length_lsn));
+        LOG(lm_output, LOG_NOTICE, ("Queuing raw: %s, start_lsn: %d, length_lsn: %d", file_path, start_lsn, length_lsn));
 
         list_add_tail(&output_format_ptr->siblings, &output->ripping_queue);
 
@@ -248,6 +276,7 @@ int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, 
     {
         output_format_ptr = calloc(sizeof(scarletbook_output_format_t), 1);
         output_format_ptr->sb_handle = sb_handle;
+        init_output_format(output, output_format_ptr);
         output_format_ptr->cb_fwprintf = output->fwprintf_callback;
         output_format_ptr->area = area;
         output_format_ptr->track = track;
@@ -267,7 +296,7 @@ int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, 
         {
             output_format_ptr->start_lsn = sb_handle->area[area].area_toc->track_start;
         }
-      
+
         if (last_track < sb_handle->area[area].area_toc->track_count - 1)
         {
             output_format_ptr->length_lsn = sb_handle->area[area].area_tracklist_offset->track_start_lsn[last_track + 1] - output_format_ptr->start_lsn + 1;
@@ -286,7 +315,7 @@ int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, 
         if (!(output_format_ptr->start_lsn >= sb_handle->area[area].area_toc->track_start) ||
             !(output_format_ptr->start_lsn <= sb_handle->area[area].area_toc->track_end))
         {
-            LOG(lm_main, LOG_NOTICE, ("Queuing error: track_start_lsn is not is area! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
+            LOG(lm_output, LOG_NOTICE, ("Queuing error: track_start_lsn is not is area! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
             output_format_ptr->cb_fwprintf(stderr, L"\n Queuing error: track_start_lsn is not is area! area: %d, track %d, start_lsn: %d, length_lsn: %d\n", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn);
             }
 
@@ -296,7 +325,7 @@ int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, 
             {
                 if (!(sb_handle->area[area].area_tracklist_offset->track_start_lsn[track + 1] >= sb_handle->area[area].area_tracklist_offset->track_start_lsn[track] + sb_handle->area[area].area_tracklist_offset->track_length_lsn[track] - 1))
                 {
-                    LOG(lm_main, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
+                    LOG(lm_output, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
                     output_format_ptr->cb_fwprintf(stderr, L"\n Queuing error: equation not valid(beetween track_start_lsn and track_length_lsn)! area: %d, track %d, start_lsn: %d, length_lsn: %d\n", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn);
                 }
             }
@@ -304,13 +333,13 @@ int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, 
             {
                 if (!(sb_handle->area[area].area_toc->track_end >= sb_handle->area[area].area_tracklist_offset->track_start_lsn[track] + sb_handle->area[area].area_tracklist_offset->track_length_lsn[track] - 1))
                 {
-                    LOG(lm_main, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
+                    LOG(lm_output, LOG_NOTICE, ("Queuing error: equation not valid! area: %d, track %d, start_lsn: %d, length_lsn: %d", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn));
                     output_format_ptr->cb_fwprintf(stderr, L"\n Queuing error: equation not valid(beetween track_start_lsn and track_length_lsn)! area: %d, track %d, start_lsn: %d, length_lsn: %d\n", area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn);
                 }
             }
 
 
-        LOG(lm_main, LOG_NOTICE, ("Queuing: concatenation %s, area: %d, track %d, start_lsn: %d, length_lsn: %d, dst_encoded_import: %d, dsd_encoded_export: %d", file_path, area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn, output_format_ptr->dst_encoded_import, output_format_ptr->dsd_encoded_export));
+        LOG(lm_output, LOG_NOTICE, ("Queuing: concatenation %s, area: %d, track %d, start_lsn: %d, length_lsn: %d, dst_encoded_import: %d, dsd_encoded_export: %d", file_path, area, track, output_format_ptr->start_lsn, output_format_ptr->length_lsn, output_format_ptr->dst_encoded_import, output_format_ptr->dsd_encoded_export));
 
         list_add_tail(&output_format_ptr->siblings, &output->ripping_queue);
 
@@ -322,25 +351,40 @@ int scarletbook_output_enqueue_concatenate_tracks(scarletbook_output_t *output, 
 static int create_output_file(scarletbook_output_format_t *ft)
 {
     int result;
+    char inprogress[MAX_BUFF_FULL_PATH_LEN];
+
+    if (output_path_with_marker(ft->filename, "inprogress", inprogress, sizeof(inprogress)) != 0)
+    {
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_CREATE,
+                                            "output path is too long");
+        return -1;
+    }
+    ft->working_filename = strdup(inprogress);
+    if (!ft->working_filename)
+    {
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_CREATE, "out of memory");
+        return -1;
+    }
 
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
     char filename_long[MAX_BUFF_FULL_PATH_LEN];
 	memset(filename_long, '\0', MAX_BUFF_FULL_PATH_LEN);
     strcpy(filename_long,"\\\\?\\");
-    strncat(filename_long,ft->filename, MAX_BUFF_FULL_PATH_LEN - 8);
-	
+    strncat(filename_long,ft->working_filename, MAX_BUFF_FULL_PATH_LEN - 8);
+
     wchar_t *wide_filename;
-	
+
     CHAR2WCHAR(wide_filename,filename_long);
     ft->fd = _wfopen(wide_filename, L"wb");
-	
+
     free(wide_filename);
 #else
-    ft->fd = fopen(ft->filename, "wb");	
+    ft->fd = fopen(ft->working_filename, "wb");
 #endif
     if (ft->fd == NULL)
-    {   
-        LOG(lm_main, LOG_ERROR, ("error creating %s, errno: %d, %s", ft->filename, errno, strerror(errno)));
+    {
+        LOG(lm_output, LOG_ERROR, ("error creating %s, errno: %d, %s", ft->filename, errno, strerror(errno)));
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_CREATE, strerror(errno));
         goto error;
     }
 
@@ -352,7 +396,9 @@ static int create_output_file(scarletbook_output_format_t *ft)
      */
     if (setvbuf(ft->fd, NULL, _IONBF, 0) != 0)
     {
-        LOG(lm_main, LOG_ERROR, ("error disabling stdio buffering for %s", ft->filename));
+        LOG(lm_output, LOG_ERROR, ("error disabling stdio buffering for %s", ft->filename));
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_CREATE,
+                                            "unable to configure output stream");
         fclose(ft->fd);
         ft->fd = NULL;
         goto error;
@@ -361,7 +407,12 @@ static int create_output_file(scarletbook_output_format_t *ft)
     ft->priv = calloc(1, ft->handler.priv_size);
 
     result = ft->handler.startwrite ? (*ft->handler.startwrite)(ft) : 0;
-   
+    if (result != 0 && ft->error_number == SACD_OUTPUT_ERROR_NONE)
+    {
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_CREATE,
+                                            "unable to initialize output container");
+    }
+
     return result;
 
 error:
@@ -370,22 +421,58 @@ error:
     return -1;
 }
 
-static inline int close_output_file(scarletbook_output_format_t * ft)
+static int publish_output_file(scarletbook_output_format_t *ft, const char *marker)
+{
+    char published[MAX_BUFF_FULL_PATH_LEN];
+    const char *destination = ft->filename;
+    if (marker)
+    {
+        if (output_path_with_marker(ft->filename, marker, published, sizeof(published)) != 0)
+            return -1;
+        destination = published;
+    }
+    if (!ft->working_filename || output_publish_atomic(ft->working_filename, destination) != 0)
+    {
+        char error[256];
+        snprintf(error, sizeof(error), "rename failed: %s", strerror(errno));
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_FINALIZE, error);
+        return -1;
+    }
+    LOG(lm_output, marker ? LOG_WARNING : LOG_INFO,
+        ("published output path=%s status=%s defects=%u", destination,
+         marker ? marker : "clean", atomic_load(&ft->media_error_count)));
+    return 0;
+}
+
+static inline int close_output_file(scarletbook_output_format_t *ft, const char *marker)
 {
     int result=0;
-	
+    int had_file = ft->fd != NULL;
+
 	if(ft->fd != NULL){
 		result = ft->handler.stopwrite ? (*ft->handler.stopwrite)(ft) : 0;
 		if(result ==-1)
-			LOG(lm_main, LOG_ERROR, ("error closing %s", ft->filename));
-	} 
-    	
+			LOG(lm_output, LOG_ERROR, ("error closing %s", ft->filename));
+	}
+
     if (ft->fd != NULL)
     {
-        fclose(ft->fd);
-    }	
-	
-    if(ft->filename)free(ft->filename);	
+        if (fclose(ft->fd) != 0)
+            result = -1;
+        ft->fd = NULL;
+    }
+
+    if (result != 0)
+    {
+        marker = "failed";
+        scarletbook_output_format_set_error(ft, SACD_OUTPUT_ERROR_FINALIZE,
+                                            "container finalization failed");
+    }
+    if (had_file && ft->working_filename && publish_output_file(ft, marker) != 0)
+        result = -1;
+
+    if(ft->filename)free(ft->filename);
+    if(ft->working_filename)free(ft->working_filename);
     if(ft->priv)free(ft->priv);
     free(ft);
 
@@ -420,6 +507,42 @@ static inline int write_block(scarletbook_output_format_t * ft, const uint8_t *b
     return actual;
 }
 
+static void set_fatal_error(scarletbook_output_format_t *ft,
+                            scarletbook_output_error_t error_number,
+                            const char *message)
+{
+    scarletbook_output_format_set_error(ft, error_number,
+                                        message ? message : "fatal output error");
+    atomic_store(&ft->abort_current, 1);
+}
+
+static int record_media_errors(scarletbook_output_format_t *ft, uint32_t count,
+                               const char *kind, uint32_t lsn)
+{
+    uint32_t total;
+    if (count == 0)
+        return 0;
+    {
+        uint32_t previous = atomic_fetch_add(&ft->media_error_count, count);
+        (void)media_error_budget_add(previous, count, ft->max_media_errors, &total);
+    }
+    ft->partial = 1;
+    ft->error_number = SACD_OUTPUT_ERROR_MEDIA;
+    snprintf(ft->error_str, sizeof(ft->error_str), "%s at LSN %u", kind, lsn);
+    LOG(lm_output, LOG_WARNING,
+        ("media defect kind=%s lsn=%u count=%u total=%u limit=%u file=%s",
+         kind, lsn, count, total, ft->max_media_errors, ft->filename));
+    if (total > ft->max_media_errors)
+    {
+        atomic_store(&ft->abort_current, 1);
+        LOG(lm_output, LOG_ERROR,
+            ("media defect budget exceeded total=%u limit=%u file=%s",
+             total, ft->max_media_errors, ft->filename));
+        return -1;
+    }
+    return 0;
+}
+
 static void frame_decoded_callback(uint8_t* frame_data, size_t frame_size, void *userdata)
 {
     scarletbook_output_format_t *ft = (scarletbook_output_format_t *) userdata;
@@ -427,8 +550,8 @@ static void frame_decoded_callback(uint8_t* frame_data, size_t frame_size, void 
     if (rezult == -1)
     {
 	 ft->cb_fwprintf(stderr, L"\n ERROR in frame_decoded_callback():write_block()...at writting in file.\n");
-	 LOG(lm_main, LOG_ERROR, ("ERROR in frame_decoded_callback():write_block()...writting in file: %s  ",ft->filename) );
-	 raise(SIGINT);
+	 LOG(lm_output, LOG_ERROR, ("ERROR in frame_decoded_callback():write_block()...writting in file: %s  ",ft->filename) );
+	 set_fatal_error(ft, SACD_OUTPUT_ERROR_WRITE, "decoded frame write failed");
 	}
 }
 
@@ -440,7 +563,8 @@ static void frame_error_callback(int frame_count, int frame_error_code, const ch
     CHAR2WCHAR(wide_frame_error_mesage, frame_error_message);
     ft->cb_fwprintf(stderr, L"\n ERROR in dst_decoder: %s in frame: %d\n", wide_frame_error_mesage, frame_count); //frame_error_message
     free(wide_frame_error_mesage);
-    LOG(lm_main, LOG_ERROR, ("ERROR in dst_decoder: %s in frame: %d", frame_error_message, frame_count));
+    LOG(lm_output, LOG_ERROR, ("ERROR in dst_decoder: %s in frame: %d", frame_error_message, frame_count));
+    (void)record_media_errors(ft, 1, "DST decode failure", ft->current_lsn);
 }
 
 static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_data, size_t frame_size, void *userdata)
@@ -450,7 +574,7 @@ static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_dat
 
     if (ft->handler.flags & OUTPUT_FLAG_EDIT_MASTER) //  only for DSDIFF master
     {
-        if (ft->dsd_encoded_export && ft->dst_encoded_import) 
+        if (ft->dsd_encoded_export && ft->dst_encoded_import)
         {
             dst_decoder_decode(ft->dst_decoder, frame_data, frame_size);
 			ft->sb_handle->count_frames++;
@@ -462,8 +586,8 @@ static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_dat
             if (rezult == -1)
             {
                 ft->cb_fwprintf(stderr, L"\n ERROR in frame_read_callback():write_block()..at writting in dsdiff master file. \n");
-                LOG(lm_main, LOG_ERROR, ("ERROR in frame_read_callback:write_block()...writting in file: %s  ", ft->filename));
-                raise(SIGINT);
+                LOG(lm_output, LOG_ERROR, ("ERROR in frame_read_callback:write_block()...writting in file: %s  ", ft->filename));
+                set_fatal_error(ft, SACD_OUTPUT_ERROR_WRITE, "Edit Master frame write failed");
             }
 			ft->sb_handle->count_frames++;
         }
@@ -493,8 +617,8 @@ static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_dat
                     if (rezult == -1)
                     {
                         ft->cb_fwprintf(stderr, L"\n ERROR in frame_read_callback():write_block()..at writting in dsf/dsdiff file. \n");
-                        LOG(lm_main, LOG_ERROR, ("ERROR in frame_read_callback:write_block()...writting in file: %s  ", ft->filename));
-                        raise(SIGINT);
+                        LOG(lm_output, LOG_ERROR, ("ERROR in frame_read_callback:write_block()...writting in file: %s  ", ft->filename));
+                        set_fatal_error(ft, SACD_OUTPUT_ERROR_WRITE, "audio frame write failed");
                     }
                     ft->sb_handle->count_frames++;
                 }
@@ -514,14 +638,49 @@ static void frame_read_callback(scarletbook_handle_t *handle, uint8_t* frame_dat
                 if (rezult == -1)
                 {
                     ft->cb_fwprintf(stderr, L"\n ERROR in frame_read_callback():write_block()..at writting in file. \n");
-                    LOG(lm_main, LOG_ERROR, ("ERROR in frame_read_callback:write_block()...writting in file: %s  ", ft->filename));
-                    raise(SIGINT);
+                    LOG(lm_output, LOG_ERROR, ("ERROR in frame_read_callback:write_block()...writting in file: %s  ", ft->filename));
+                    set_fatal_error(ft, SACD_OUTPUT_ERROR_WRITE, "audio frame write failed");
                 }
                 ft->sb_handle->count_frames++;
             }
         }
 
     }
+}
+
+static sacd_input_read_result_t output_read_callback(void *userdata, uint32_t lsn,
+                                                     uint32_t blocks, uint8_t *buffer)
+{
+    return sacd_read_block_raw_ex((sacd_reader_t *)userdata, lsn, blocks, buffer);
+}
+
+static int process_audio_runs(scarletbook_output_format_t *ft, uint8_t *buffer,
+                              const uint8_t *valid_map, uint32_t blocks,
+                              uint32_t base_lsn, int final_batch)
+{
+    scarletbook_handle_t *handle = ft->sb_handle;
+    for (uint32_t index = 0; index < blocks; ++index)
+    {
+        if (!valid_map[index])
+        {
+            handle->frame.started = 0;
+            handle->frame.size = 0;
+            continue;
+        }
+        int parser_result = scarletbook_process_frames(handle,
+                            buffer + index * SACD_LSN_SIZE, 1,
+                            final_batch && index + 1 == blocks, frame_read_callback, ft);
+        if (parser_result < 0)
+        {
+            uint32_t defects = (uint32_t)(-parser_result);
+            if (record_media_errors(ft, defects, "malformed audio sector/frame",
+                                    base_lsn + index) != 0)
+                return -1;
+        }
+        if (atomic_load(&ft->abort_current))
+            return -1;
+    }
+    return 0;
 }
 
 static void *processing_thread(void *arg)
@@ -559,7 +718,8 @@ static void *processing_thread(void *arg)
 
         if (create_output_file(ft) == 0)
         {
-            uint32_t block_size=0, end_lsn=0, blocks_readed = 0;
+            uint32_t block_size=0, end_lsn=0;
+            uint8_t valid_map[MAX_PROCESSING_BLOCK_SIZE];
 
             // what blocks do we need to process?
             ft->current_lsn = ft->start_lsn;
@@ -567,26 +727,52 @@ static void *processing_thread(void *arg)
 
             //handle->count_frames = 0;
 
-            atomic_store(&output->stop_processing, 0);
-
             while (atomic_load(&output->stop_processing) == 0)
             {
                 if (ft->current_lsn < end_lsn)
                 {
                     block_size = min(end_lsn - ft->current_lsn, MAX_PROCESSING_BLOCK_SIZE);
 
-                    // read some blocks
-                    blocks_readed = sacd_read_block_raw(ft->sb_handle->sacd, ft->current_lsn, block_size, output->read_buffer);
-
-                    if (blocks_readed == 0)
+                    uint32_t batch_lsn = ft->current_lsn;
+                    uint32_t current_defects = atomic_load(&ft->media_error_count);
+                    uint32_t remaining = current_defects <= ft->max_media_errors
+                                             ? ft->max_media_errors - current_defects : 0;
+                    uint32_t hole_limit = remaining == UINT32_MAX ? UINT32_MAX : remaining + 1;
+                    media_recovery_result_t recovery = media_read_recover_limited(
+                        output_read_callback, ft->sb_handle->sacd, batch_lsn, block_size,
+                        SACD_LSN_SIZE, output->read_buffer, valid_map, hole_limit);
+                    if (recovery.fatal)
                     {
-                        output->fwprintf_callback(stdout, L"\n \n Error:blocks_readed =0, current_lsn:%d, end_lsn:%d, block_size:%d \n", ft->current_lsn, end_lsn, block_size);
-                        LOG(lm_main, LOG_ERROR, ("Error:blocks_readed = 0, current_lsn:%d, end_lsn:%d, block_size:%d", ft->current_lsn, end_lsn, block_size));                        
-                        atomic_store(&output->stop_processing, 1);
+                        set_fatal_error(ft, SACD_OUTPUT_ERROR_INPUT_FATAL, recovery.error_string);
+                        output->result = SACD_OUTPUT_RESULT_FATAL;
+                        break;
+                    }
+                    if (recovery.holes)
+                    {
+                        uint32_t recorded_holes = 0;
+                        int budget_exceeded = 0;
+                        for (uint32_t index = 0;
+                             index < block_size && recorded_holes < recovery.holes;
+                             ++index)
+                        {
+                            if (!valid_map[index])
+                            {
+                                recorded_holes++;
+                                if (record_media_errors(ft, 1, "unreadable sector",
+                                                        batch_lsn + index) != 0)
+                                {
+                                    budget_exceeded = 1;
+                                    break;
+                                }
+                            }
+                        }
+                        if (budget_exceeded)
+                        {
+                            output->result = SACD_OUTPUT_RESULT_PARTIAL;
+                            break;
+                        }
                     }
 
-                    block_size=blocks_readed;
-                    
                     ft->current_lsn += block_size;
                     output->stats_total_sectors_processed += block_size;
                     output->stats_current_file_sectors_processed += block_size;
@@ -597,29 +783,29 @@ static void *processing_thread(void *arg)
                     // process DSD & DST frames
                     if (ft->handler.flags & OUTPUT_FLAG_DSD || ft->handler.flags & OUTPUT_FLAG_DST)
                     {
-                       int rezult_proc_frames =  scarletbook_process_frames(ft->sb_handle, output->read_buffer, block_size, ft->current_lsn >= end_lsn, frame_read_callback, ft);
-                       if (rezult_proc_frames < 0){
-                           LOG(lm_main, LOG_ERROR, ("Error in return of scarlet_process_frames!, current_lsn:%d, end_lsn:%d, block_size:%d", ft->current_lsn, end_lsn, block_size));
-                           output->fwprintf_callback(stdout, L"\n \n Error in processing frames! \n");
-                       }
+                       (void)process_audio_runs(ft, output->read_buffer, valid_map, block_size, batch_lsn,
+                                                ft->current_lsn >= end_lsn);
                        if (ft->current_lsn >= end_lsn){
-                           LOG(lm_main, LOG_NOTICE, ("End track no. %d. After last call to scarletbook_process_frames. current_lsn >= end_lsn, current_lsn:%d, end_lsn:%d, block_size:%d", ft->track, ft->current_lsn, end_lsn, block_size));
+                           LOG(lm_output, LOG_NOTICE, ("End track no. %d. After last call to scarletbook_process_frames. current_lsn >= end_lsn, current_lsn:%d, end_lsn:%d, block_size:%d", ft->track, ft->current_lsn, end_lsn, block_size));
                            uint32_t frame_count_time_start = TIME_FRAMECOUNT(&handle->area[ft->area].area_tracklist_time->start[ft->track]);
                            uint32_t frame_count_time_end = frame_count_time_start +  TIME_FRAMECOUNT(&handle->area[ft->area].area_tracklist_time->duration[ft->track]);
-                           LOG(lm_main, LOG_NOTICE, ("End track. After last call to scarletbook_process_frames. frame_count_time_start:%u, frame_count_time_end:%u", frame_count_time_start, frame_count_time_end));
+                           LOG(lm_output, LOG_NOTICE, ("End track. After last call to scarletbook_process_frames. frame_count_time_start:%u, frame_count_time_end:%u", frame_count_time_start, frame_count_time_end));
                        }
                     }
-                    // ISO output is written without frame processing                        
+                    // ISO output is written without frame processing
                     else if (ft->handler.flags & OUTPUT_FLAG_RAW)
                     {
                        size_t rezult=  write_block(ft, output->read_buffer, block_size);
-					   if (rezult ==(size_t) -1) 
+					   if (rezult ==(size_t) -1)
 					   {
-						   output->fwprintf_callback(stdout, L"\n \n Error in writting ISO in file. \n");
-						   atomic_store(&output->stop_processing, 1);
-					   }
-					    
+                               output->fwprintf_callback(stdout, L"\n \n Error in writting ISO in file. \n");
+                               set_fatal_error(ft, SACD_OUTPUT_ERROR_WRITE, "ISO write failed");
+                               output->result = SACD_OUTPUT_RESULT_FATAL;
+						   }
+
                     }
+                    if (atomic_load(&ft->abort_current))
+                        break;
 
                     // debug
                     //output->fwprintf_callback(stdout, L"\n \n After scarlet_processe_frames. Processed: %d audioframes\n", ft->count_frames);
@@ -627,7 +813,7 @@ static void *processing_thread(void *arg)
                     // update statistics
                     if (output->stats_progress_callback)
                     {
-                        output->stats_progress_callback(output->stats_total_sectors, output->stats_total_sectors_processed, 
+                        output->stats_progress_callback(output->stats_total_sectors, output->stats_total_sectors_processed,
                             output->stats_current_file_total_sectors, output->stats_current_file_sectors_processed);
                     }
                 }
@@ -641,9 +827,10 @@ static void *processing_thread(void *arg)
         }  // end  if (create_output_file(ft)
         else  // error in creating file
         {
-			no_tracks_with_errors++;
+				no_tracks_with_errors++;
+            output->result = SACD_OUTPUT_RESULT_FATAL;
             output->fwprintf_callback(stdout, L"\n \n ERROR: Cannot create output file for current track number %d of total %d !!", output->stats_current_track, output->stats_total_tracks);
-            LOG(lm_main, LOG_ERROR, ("ERROR: Cannot create output file for current track number %d of total %d !!", output->stats_current_track, output->stats_total_tracks));
+            LOG(lm_output, LOG_ERROR, ("ERROR: Cannot create output file for current track number %d of total %d !!", output->stats_current_track, output->stats_total_tracks));
         }
 
         // Show statistics only for DFF-edit-master : print Error if nr of processed frames < of duration (nr of frames)
@@ -660,9 +847,9 @@ static void *processing_thread(void *arg)
                                       handle->area[ft->area].area_toc->total_playtime.minutes,
                                       handle->area[ft->area].area_toc->total_playtime.seconds,
                                       handle->area[ft->area].area_toc->total_playtime.frames);
-            if (handle->count_frames < duration) 
+            if (handle->count_frames < duration)
             {
-                LOG(lm_main, LOG_NOTICE, ("Warning: Number of processed audioframes (%d) is smaller than number of frames in duration (%d)", handle->count_frames, duration));
+                LOG(lm_output, LOG_NOTICE, ("Warning: Number of processed audioframes (%d) is smaller than number of frames in duration (%d)", handle->count_frames, duration));
                 output->fwprintf_callback(stdout, L"\n \n Warning: Number of processed audioframes (%d) is smaller than number of frames in duration (%d) \n", handle->count_frames, duration);
             }
         }
@@ -681,7 +868,7 @@ static void *processing_thread(void *arg)
                                           handle->area[ft->area].area_tracklist_time->duration[ft->track].frames);
                 if (handle->count_frames < duration) //output->stats_current_count_frames
                 {
-                    LOG(lm_main, LOG_NOTICE, ("Warning: Number of processed audioframes (%d) is smaller than number of frames in duration (%d)", handle->count_frames, duration));
+                    LOG(lm_output, LOG_NOTICE, ("Warning: Number of processed audioframes (%d) is smaller than number of frames in duration (%d)", handle->count_frames, duration));
                     output->fwprintf_callback(stdout, L"\n \n Warning: Number of processed audioframes (%d) is smaller than number of frames in duration (%d) \n", handle->count_frames, duration);
                 }
             }
@@ -694,53 +881,49 @@ static void *processing_thread(void *arg)
                                           (int)count_sec % 60,
                                           (int)handle->count_frames % SACD_FRAME_RATE);
             }
-                      
+
         }
 
         if (atomic_load(&output->stop_processing) == 1)
         {
             output->fwprintf_callback(stdout, L"\n ...stop processing\n");
-            LOG(lm_main, LOG_NOTICE, ("...stop processing"));
-            // make a copy of the filename
-            //char *file_to_remove = strdup(ft->filename);
-
-            atomic_store(&output->processing, 0);
-
-            if (ft->dsd_encoded_export && ft->dst_encoded_import)
-            {
-                dst_decoder_destroy(ft->dst_decoder);
-            }
-
-            close_output_file(ft);
-			
-			if (no_tracks_with_errors > 0)
-			{
-				output->fwprintf_callback(stdout, L"\n \n Error: (%d) track(s) has errors !!", no_tracks_with_errors);
-                LOG(lm_main, LOG_ERROR, ("Error: (%d) track(s) has errors !!", no_tracks_with_errors));
-            }
-
-            // remove the file being worked on
-           // if (remove(file_to_remove) != 0)
-            //{
-            //    LOG(lm_main, LOG_ERROR, ("user cancelled, error removing: %s, [%s]", file_to_remove, strerror(errno)));
-            //}
-
-            //free(file_to_remove);
-
-            destroy_ripping_queue(output);
-            pthread_exit(0);
+            LOG(lm_output, LOG_WARNING, ("processing interrupted by user"));
+            output->interrupted = 1;
+            output->result = SACD_OUTPUT_RESULT_INTERRUPTED;
+            ft->partial = 1;
+            ft->error_number = SACD_OUTPUT_ERROR_INTERRUPTED;
+            snprintf(ft->error_str, sizeof(ft->error_str), "interrupted by user");
         }
-		
-		//DEBUG LOG(lm_main, LOG_ERROR, ("before dsd_encoded_export"));
+
+		//DEBUG LOG(lm_output, LOG_ERROR, ("before dsd_encoded_export"));
 
         if (ft->dsd_encoded_export && ft->dst_encoded_import)
         {
             dst_decoder_destroy(ft->dst_decoder);
         }
-		
-		//DEBUG LOG(lm_main, LOG_ERROR, ("before close_output_file"));
 
-        close_output_file(ft);
+		//DEBUG LOG(lm_output, LOG_ERROR, ("before close_output_file"));
+
+        {
+            const char *marker = NULL;
+            if (ft->error_number >= SACD_OUTPUT_ERROR_CREATE &&
+                ft->error_number <= SACD_OUTPUT_ERROR_INPUT_FATAL)
+                output->result = SACD_OUTPUT_RESULT_FATAL;
+            if (output->result == SACD_OUTPUT_RESULT_FATAL ||
+                (ft->error_number >= SACD_OUTPUT_ERROR_CREATE &&
+                 ft->error_number <= SACD_OUTPUT_ERROR_INPUT_FATAL))
+                marker = "failed";
+            else if (ft->partial || atomic_load(&ft->media_error_count) > 0 || output->interrupted)
+                marker = "partial";
+
+            if (marker && strcmp(marker, "partial") == 0 &&
+                output->result == SACD_OUTPUT_RESULT_CLEAN)
+                output->result = SACD_OUTPUT_RESULT_PARTIAL;
+            if (close_output_file(ft, marker) != 0)
+                output->result = SACD_OUTPUT_RESULT_FATAL;
+        }
+        if (!sacd_output_queue_continues(output->result) || output->interrupted)
+            break;
     } // end while (!list_empty(&output->ripping_queue))
 
     if (no_tracks_with_errors > 0)
@@ -748,8 +931,8 @@ static void *processing_thread(void *arg)
         output->fwprintf_callback(stdout, L"\n \n Error: %d track(s) has errors of total %d tracks !!", no_tracks_with_errors, output->stats_total_tracks);
     }
 
-	// DEBUG LOG(lm_main, LOG_ERROR, ("before destroy_ripping_queue"));
-	
+	// DEBUG LOG(lm_output, LOG_ERROR, ("before destroy_ripping_queue"));
+
     destroy_ripping_queue(output);
     atomic_store(&output->processing, 0);
     return NULL;
@@ -767,6 +950,8 @@ scarletbook_output_t *scarletbook_output_create(scarletbook_handle_t *handle, st
     output->stats_track_callback = cb_track;
     output->stats_progress_callback = cb_progress;
     output->fwprintf_callback = cb_fwprintf;
+    output->max_media_errors = 10;
+    output->result = SACD_OUTPUT_RESULT_CLEAN;
 
     return output;
 }
@@ -785,7 +970,7 @@ int scarletbook_output_start(scarletbook_output_t *output)
     ret = pthread_create(&output->processing_thread_id, NULL, processing_thread, (void *) output);
     if (ret)
     {
-        LOG(lm_main, LOG_ERROR, ("return code from processing thread creation is %d\n", ret));
+        LOG(lm_output, LOG_ERROR, ("return code from processing thread creation is %d\n", ret));
     }
 
     return ret;
@@ -793,7 +978,26 @@ int scarletbook_output_start(scarletbook_output_t *output)
 
 void scarletbook_output_interrupt(scarletbook_output_t *output)
 {
-    atomic_store(&output->stop_processing, 1);
+    if (output)
+        atomic_store(&output->stop_processing, 1);
+}
+
+void scarletbook_output_set_max_read_errors(scarletbook_output_t *output, uint32_t maximum)
+{
+    struct list_head *node_ptr;
+    if (!output)
+        return;
+    output->max_media_errors = maximum;
+    list_for_each(node_ptr, &output->ripping_queue)
+    {
+        scarletbook_output_format_t *ft = list_entry(node_ptr, scarletbook_output_format_t, siblings);
+        ft->max_media_errors = maximum;
+    }
+}
+
+int scarletbook_output_result(scarletbook_output_t *output)
+{
+    return output ? output->result : SACD_OUTPUT_RESULT_FATAL;
 }
 
 int scarletbook_output_destroy(scarletbook_output_t *output)
@@ -804,15 +1008,17 @@ int scarletbook_output_destroy(scarletbook_output_t *output)
     if (!output)
         return -1;
 
-    scarletbook_output_interrupt(output);
     ret = pthread_join(output->processing_thread_id, &thr_exit_code);
     if (ret != 0)
     {
-        LOG(lm_main, LOG_ERROR, ("processing thread didn't close properly... %p", thr_exit_code));
+        LOG(lm_output, LOG_ERROR, ("processing thread didn't close properly... %p", thr_exit_code));
     }
 
     // If decoding is aborted (eg. ctrl+C), then free() buffers after the decoder has been destroyed,
     // to ensure that buffers aren't still in use when they're free()d.
+    if (ret != 0)
+        output->result = SACD_OUTPUT_RESULT_FATAL;
+    ret = output->result;
     free(output->read_buffer);
     free(output);
 

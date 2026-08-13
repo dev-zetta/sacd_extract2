@@ -30,8 +30,9 @@ jobs:
       - name: Build
         run: cmake --build build/release --parallel
 
-      - name: Smoke test
+      - name: Unit and smoke tests
         run: |
+          ctest --test-dir build/release --output-on-failure
           build/release/sacd_extract --version
           build/release/sacd_extract --help
 
@@ -44,3 +45,32 @@ jobs:
           name: sacd_extract-linux-x86_64
           path: build/sacd_extract-linux-x86_64.tar.gz
           if-no-files-found: error
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends cmake gcc libxml2-dev make
+
+      - name: Configure ASan and UBSan
+        run: >-
+          cmake -S tools/sacd_extract -B build/sanitizers
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build/sanitizers --parallel
+
+      - name: Run sanitizer tests
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build/sanitizers --output-on-failure

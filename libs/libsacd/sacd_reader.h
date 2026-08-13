@@ -80,6 +80,7 @@ void sacd_close(sacd_reader_t *);
  * sacd_read_block_raw(sacd, lb_number, block_count, data);
  */
 uint32_t sacd_read_block_raw(sacd_reader_t *, uint32_t, uint32_t, uint8_t *);
+sacd_input_read_result_t sacd_read_block_raw_ex(sacd_reader_t *, uint32_t, uint32_t, uint8_t *);
 
 /**
  * returns the total sector size of the image / disc

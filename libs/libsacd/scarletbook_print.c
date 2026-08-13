@@ -39,7 +39,7 @@
 
 // Print to 'wide stdout' a char *vartext (which is converted inside this func before)
 // Conversion char *vartext to wide is made inside of this function.
-// input text is a simple char * vartext (not wide) !!! 
+// input text is a simple char * vartext (not wide) !!!
 // format must contains %ls !!!
 //
 void fwprintf_vartext(const wchar_t *__restrict__ format, const char *text)
@@ -48,20 +48,20 @@ void fwprintf_vartext(const wchar_t *__restrict__ format, const char *text)
 
     CHAR2WCHAR(wide_text,text);
     fwprintf(stdout, format, wide_text);
-  
+
     free(wide_text);
 }
 // Print to 'wide stdout' an int and a char *vartext (which is converted inside this func before)
 // Conversion char *vartext to wide is made inside of this function.
-// input text is a simple char * vartext (not wide) !!! 
+// input text is a simple char * vartext (not wide) !!!
 // format must contains %d ...%ls !!!
 void fwprintf_int_vartext(const wchar_t *__restrict__ format, int i, const char *text)
 {
     wchar_t * wide_text;
-    
+
     CHAR2WCHAR(wide_text,text);
     fwprintf(stdout, format, i, wide_text);
-      
+
     free(wide_text);
 }
 
@@ -129,25 +129,25 @@ static void scarletbook_print_master_toc(scarletbook_handle_t *handle)
     }
     fwprintf(stdout, L"\tSequence Number: %i; Set Size: %i\n", mtoc->album_sequence_number,mtoc->album_set_size);
 
-    
+
     for (i = 0; i < 4; i++)
     {
         genre_table_t *t = &mtoc->album_genre[i];
         if (i==0 && t->category == 0x00 )
         {
-            fwprintf_vartext(L"\tAlbum genre table:%ls\n", album_category[t->category]); 
+            fwprintf_vartext(L"\tAlbum genre table:%ls\n", album_category[t->category]);
         }
 
         if (t->category == 0x01 && t->genre < MAX_GENRE_COUNT)
-        {  
+        {
             fwprintf_vartext(L"\tAlbum genre: %ls\n", album_genre[t->genre]);
             //fwprintf_vartext(L", table:%ls\n", album_category[t->category]);
         }
-        
+
         if (t->category == 0x02)
         {
              fwprintf_int_vartext(L"\tAlbum genre:[%d], table:%ls RIS504, unimplemented\n",t->genre, album_category[t->category]);
-        }     
+        }
 
     }
 
@@ -171,19 +171,19 @@ static void scarletbook_print_master_toc(scarletbook_handle_t *handle)
         genre_table_t *t = &mtoc->disc_genre[i];
         if (i==0 && t->category == 0x00 )
         {
-            fwprintf_vartext(L"\tDisc genre table:%ls\n", album_category[t->category]); 
+            fwprintf_vartext(L"\tDisc genre table:%ls\n", album_category[t->category]);
         }
-        
+
         if (t->category == 0x01 && t->genre < MAX_GENRE_COUNT)
-        {  
+        {
             fwprintf_vartext(L"\tDisc genre: %ls\n", album_genre[t->genre]);
             //fwprintf_vartext(L", table:%ls\n", album_category[t->category]);
         }
-        
+
         if (t->category == 0x02)
         {
              fwprintf_int_vartext(L"\tDisc genre:[%d], table:%ls RIS504, unimplemented\n",t->genre, album_category[t->category]);
-        }     
+        }
 
     }
 
@@ -270,20 +270,20 @@ static void scarletbook_print_area_text(scarletbook_handle_t *handle, int area_i
             memcpy(isrc_buf,isrc->country_code,2);
             fwprintf_vartext(L"(country:%ls, ", isrc_buf);
             memset(isrc_buf,0,sizeof(isrc_buf));
-            memcpy(isrc_buf,isrc->owner_code,3);            
+            memcpy(isrc_buf,isrc->owner_code,3);
             fwprintf_vartext(L"owner:%ls, ", isrc_buf);
             memset(isrc_buf,0,sizeof(isrc_buf));
-            memcpy(isrc_buf,isrc->recording_year,2);           
+            memcpy(isrc_buf,isrc->recording_year,2);
             fwprintf_vartext(L"year:%ls, ", isrc_buf);
             memset(isrc_buf,0,sizeof(isrc_buf));
-            memcpy(isrc_buf,isrc->designation_code,5);            
+            memcpy(isrc_buf,isrc->designation_code,5);
             fwprintf_vartext(L"designation:%ls)\n", isrc_buf);
         }
 
         genre_table_t *genre_tbl = &handle->area[area_idx].area_isrc_genre->track_genre[i];
-       
+
         if(genre_tbl->category == 0x01 && genre_tbl->genre < MAX_GENRE_COUNT)
-        {  
+        {
             fwprintf_vartext(L"\t\tGenre: %ls\n",album_genre[genre_tbl->genre] );
             //fwprintf_vartext(L"table genre [%ls]\n",album_category[genre_tbl->category]);
         }
@@ -295,14 +295,14 @@ static void scarletbook_print_area_text(scarletbook_handle_t *handle, int area_i
         {
             fwprintf_vartext(L"\t\ttable genre [%ls], unimplemented\n",album_category[genre_tbl->category]);
         }
-     
-       
+
+
         area_tracklist_time_t time_start = handle->area[area_idx].area_tracklist_time->start[i];
         area_tracklist_time_t time_duration = handle->area[area_idx].area_tracklist_time->duration[i];
         fwprintf(stdout, L"\t\tTrack_Start_Time_Code: %02d:%02d:%02d [mins:secs:frames]\n", time_start.minutes, time_start.seconds, time_start.frames);
         fwprintf(stdout, L"\t\tDuration: %02d:%02d:%02d [mins:secs:frames]\n", time_duration.minutes, time_duration.seconds, time_duration.frames);
         fwprintf(stdout, L"\n");
-    }   
+    }
 }
 
 static void scarletbook_print_area_toc(scarletbook_handle_t *handle, int area_idx)
@@ -385,7 +385,7 @@ void scarletbook_print(scarletbook_handle_t *handle)
     if (!handle)
     {
         fprintf(stderr, "No valid ScarletBook handle available\n");
-        LOG(lm_main, LOG_ERROR, ("ERROR in scarletbook_print...No valid ScarletBook handle available!"));
+        LOG(lm_metadata, LOG_ERROR, ("ERROR in scarletbook_print...No valid ScarletBook handle available!"));
         return;
     }
 

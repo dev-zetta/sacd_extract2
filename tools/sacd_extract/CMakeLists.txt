@@ -2,7 +2,9 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(sacd_extract LANGUAGES C)
+project(sacd_extract VERSION 0.4.0 LANGUAGES C)
+
+include(CTest)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -136,22 +138,35 @@ file(GLOB main_headers ./*.h)
 file(GLOB main_sources ./*.c)
 source_group(main FILES ${main_headers} ${main_sources})
 
-add_executable(sacd_extract 
-    ${main_headers} ${main_sources}
+add_library(sacd_extract_core STATIC
     ${libcommon_headers} ${libcommon_sources}
     ${libdstdec_headers} ${libdstdec_sources}
     ${libid3_headers} ${libid3_sources}
     ${libsacd_headers} ${libsacd_sources}
-    )
+)
+target_include_directories(sacd_extract_core PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ../../libs/libcommon
+    ../../libs/libdstdec
+    ../../libs/libid3
+    ../../libs/libsacd)
+
+add_executable(sacd_extract ${main_headers} ${main_sources})
+target_link_libraries(sacd_extract PRIVATE sacd_extract_core)
 
 if(WIN32)
     add_definitions(-D_FILE_OFFSET_BITS=64 -DUNICODE -D_UNICODE -DIN_LIBXML)
     target_compile_options(${PROJECT_NAME} PRIVATE -municode)
-    target_link_libraries(${PROJECT_NAME} -municode -static -lpthread -lws2_32 -liconv -lxml2 -lbcrypt)
+    target_link_libraries(sacd_extract_core PUBLIC -lpthread -lws2_32 -liconv -lxml2 -lbcrypt)
 elseif(APPLE)
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(${PROJECT_NAME} -liconv -lxml2)
+    target_link_libraries(sacd_extract_core PUBLIC -liconv -lxml2)
 else()
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(${PROJECT_NAME} PRIVATE LibXml2::LibXml2 Threads::Threads)
+    target_link_libraries(sacd_extract_core PUBLIC LibXml2::LibXml2 Threads::Threads)
+endif()
+
+if(BUILD_TESTING)
+    add_subdirectory(../../tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 endif()

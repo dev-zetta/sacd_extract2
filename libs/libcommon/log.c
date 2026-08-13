@@ -1,390 +1,273 @@
-/* ***** BEGIN LICENSE BLOCK *****
-* Version: MPL 1.1/GPL 2.0/LGPL 2.1
-*
-* The contents of this file are subject to the Mozilla Public License Version
-* 1.1 (the "License"); you may not use this file except in compliance with
-* the License. You may obtain a copy of the License at
-* http://www.mozilla.org/MPL/
-*
-* Software distributed under the License is distributed on an "AS IS" basis,
-* WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-* for the specific language governing rights and limitations under the
-* License.
-*
-* The Original Code is the Netscape Portable Runtime (NSPR).
-*
-* The Initial Developer of the Original Code is
-* Netscape Communications Corporation.
-* Portions created by the Initial Developer are Copyright (C) 1998-2000
-* the Initial Developer. All Rights Reserved.
-*
-* Contributor(s):
-*
-* Alternatively, the contents of this file may be used under the terms of
-* either the GNU General Public License Version 2 or later (the "GPL"), or
-* the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-* in which case the provisions of the GPL or the LGPL are applicable instead
-* of those above. If you wish to allow use of your version of this file only
-* under the terms of either the GPL or the LGPL, and not to allow others to
-* use your version of this file under the terms of the MPL, indicate your
-* decision by deleting the provisions above and replace them with the notice
-* and other provisions required by the GPL or the LGPL. If you do not delete
-* the provisions above, a recipient may use your version of this file under
-* the terms of any one of the MPL, the GPL or the LGPL.
-*
-* ***** END LICENSE BLOCK ***** */
+/* Structured logger used by the host-native extractor. */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
+#include <threads.h>
 #include <time.h>
-#include <unistd.h>
-#include <sys/stat.h> 
 
 #include "log.h"
 
-#define _LOCK_LOG()
-#define _UNLOCK_LOG()
+typedef struct pending_log_line_s
+{
+    char *text;
+    struct pending_log_line_s *next;
+} pending_log_line_t;
 
-#define _PUT_LOG(fd, buf, nb)    { fwrite(buf, 1, nb, fd); fflush(fd); }
+static log_module_info_t *log_modules;
+static FILE *log_file;
+static int logger_enabled;
+static log_module_level_t logger_level = LOG_INFO;
+static pending_log_line_t *pending_head;
+static pending_log_line_t *pending_tail;
+static mtx_t log_mutex;
+static once_flag log_mutex_once = ONCE_FLAG_INIT;
+static _Thread_local log_module_info_t *context_module;
+static _Thread_local log_module_level_t context_level;
+static log_time_provider_t time_provider;
 
-static log_module_info_t *logModules;
+static int system_time_provider(struct timespec *now)
+{
+    return timespec_get(now, TIME_UTC) == TIME_UTC ? 0 : -1;
+}
 
-static char            *log_buf = NULL;
-static char            *logp;
-static char            *log_endp;
-static FILE            *log_file        = NULL;
-static int             output_time_stamp = 0;
+void log_set_time_provider(log_time_provider_t provider)
+{
+    time_provider = provider;
+}
 
-#define LINE_BUF_SIZE       512
-#define DEFAULT_BUF_SIZE    16384
+static void init_mutex(void)
+{
+    (void)mtx_init(&log_mutex, mtx_plain);
+}
+
+static void lock_log(void)
+{
+    call_once(&log_mutex_once, init_mutex);
+    (void)mtx_lock(&log_mutex);
+}
+
+static void unlock_log(void)
+{
+    (void)mtx_unlock(&log_mutex);
+}
+
+const char *log_level_name(log_module_level_t level)
+{
+    switch (level)
+    {
+    case LOG_ERROR: return "ERROR";
+    case LOG_WARNING: return "WARNING";
+    case LOG_NOTICE: return "NOTICE";
+    case LOG_INFO: return "INFO";
+    case LOG_DEBUG: return "DEBUG";
+    case LOG_ALWAYS: return "ALWAYS";
+    default: return "NONE";
+    }
+}
+
+void log_configure(int enabled, log_module_level_t level)
+{
+    logger_enabled = enabled != 0;
+    logger_level = level;
+    for (log_module_info_t *module = log_modules; module; module = module->next)
+        module->level = logger_enabled ? logger_level : LOG_NONE;
+}
+
+int log_is_enabled(void)
+{
+    return logger_enabled;
+}
 
 void log_init(void)
 {
-    char             *ev = 0;
-
-    ev = getenv("LOG_MODULES");
-    if (ev && ev[0])
-    {
-        char module[64];  /* Security-Critical: If you change this
-                           * size, you must also change the sscanf
-                           * format string to be size-1.
-                           */
-        int     is_sync  = 0;
-        int     evlen   = strlen(ev), pos = 0;
-        int32_t bufSize = DEFAULT_BUF_SIZE;
-        while (pos < evlen)
-        {
-            int level = 1, count = 0, delta = 0;
-            count = sscanf(&ev[pos], "%63[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]%n:%d%n",
-                           module, &delta, &level, &delta);
-            pos += delta;
-            if (count == 0)
-                break;
-
-            /*
-            ** If count == 2, then we got module and level. If count
-            ** == 1, then level defaults to 1 (module enabled).
-            */
-            if (strcasecmp(module, "sync") == 0)
-            {
-                is_sync = 1;
-            }
-            else if (strcasecmp(module, "bufsize") == 0)
-            {
-                if (level >= LINE_BUF_SIZE)
-                {
-                    bufSize = level;
-                }
-            }
-            else if (strcasecmp(module, "timestamp") == 0)
-            {
-                output_time_stamp = 1;
-            }
-            else
-            {
-                log_module_info_t *lm = logModules;
-                int skip_modcheck = (0 == strcasecmp(module, "all")) ? 1 : 0;
-
-                while (lm != NULL)
-                {
-                    if (skip_modcheck)
-                        lm->level = (log_module_level_t) level;
-                    else if (strcasecmp(module, lm->name) == 0)
-                    {
-                        lm->level = (log_module_level_t) level;
-                        break;
-                    }
-                    lm = lm->next;
-                }
-            }
-            /*found:*/
-            count = sscanf(&ev[pos], " , %n", &delta);
-            pos  += delta;
-            if (count == EOF)
-                break;
-        }
-        set_log_buffering(is_sync ? 0 : bufSize);
-
-        ev = getenv("LOG_FILE");
-        if (ev && ev[0])
-        {
-            if (set_log_file(ev) != 0)
-            {
-                fprintf(stderr, "Unable to create log file '%s'\n", ev);
-            }
-        }
-        else
-        {
-            log_file = stderr;
-        }
-    }
+    log_configure(logger_enabled, logger_level);
 }
 
-void log_destroy(void)
+log_module_info_t *create_log_module(const char *name)
 {
-    log_module_info_t *lm = logModules;
-
-    log_flush();
-
-    if (log_file && log_file != stdout && log_file != stderr)
+    log_module_info_t *module = calloc(1, sizeof(*module));
+    if (!module)
+        return NULL;
+    module->name = strdup(name ? name : "unknown");
+    if (!module->name)
     {
-        fclose(log_file);
+        free(module);
+        return NULL;
     }
-    log_file = NULL;
-
-    if (log_buf)
-        free(log_buf);
-
-    while (lm != NULL)
-    {
-        log_module_info_t *next = lm->next;
-        free((/*const*/ char *) lm->name);
-        free(lm);
-        lm = next;
-    }
-    logModules = NULL;
-
+    module->level = logger_enabled ? logger_level : LOG_NONE;
+    module->next = log_modules;
+    log_modules = module;
+    return module;
 }
 
-static void set_log_module_level(log_module_info_t *lm)
+void log_set_context(log_module_info_t *module, log_module_level_t level)
 {
-    char *ev;
-
-    ev = getenv("LOG_MODULES");
-    if (ev && ev[0])
-    {
-        char module[64];  /* Security-Critical: If you change this
-                           * size, you must also change the sscanf
-                           * format string to be size-1.
-                           */
-        int evlen = strlen(ev), pos = 0;
-        while (pos < evlen)
-        {
-            int level = 1, count = 0, delta = 0;
-
-            count = sscanf(&ev[pos], "%63[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]%n:%d%n",
-                           module, &delta, &level, &delta);
-            pos += delta;
-            if (count == 0)
-                break;
-
-            /*
-            ** If count == 2, then we got module and level. If count
-            ** == 1, then level defaults to 1 (module enabled).
-            */
-            if (lm != NULL)
-            {
-                if ((strcasecmp(module, "all") == 0)
-                    || (strcasecmp(module, lm->name) == 0))
-                {
-                    lm->level = (log_module_level_t) level;
-                }
-            }
-            count = sscanf(&ev[pos], " , %n", &delta);
-            pos  += delta;
-            if (count == EOF)
-                break;
-        }
-    }
+    context_module = module;
+    context_level = level;
 }
 
-log_module_info_t* create_log_module(const char *name)
+static void make_timestamp(char *buffer, size_t size)
 {
-    log_module_info_t *lm;
+    struct timespec now;
+    struct tm local_tm;
+    char date[40];
+    char zone[16];
 
-    lm = (log_module_info_t *) malloc(sizeof(log_module_info_t));
-    if (lm)
-    {
-        lm->name   = strdup(name);
-        lm->level  = LOG_NONE;
-        lm->next   = logModules;
-        logModules = lm;
-        set_log_module_level(lm);
-    }
-    return lm;
+    if ((time_provider ? time_provider(&now) : system_time_provider(&now)) != 0)
+        memset(&now, 0, sizeof(now));
+#if defined(_WIN32)
+    localtime_s(&local_tm, &now.tv_sec);
+#else
+    localtime_r(&now.tv_sec, &local_tm);
+#endif
+    strftime(date, sizeof(date), "%Y-%m-%dT%H:%M:%S", &local_tm);
+    strftime(zone, sizeof(zone), "%z", &local_tm);
+    if (strlen(zone) == 5)
+        snprintf(buffer, size, "%s.%03ld%.3s:%s", date, now.tv_nsec / 1000000L,
+                 zone, zone + 3);
+    else
+        snprintf(buffer, size, "%s.%03ldZ", date, now.tv_nsec / 1000000L);
 }
 
-int set_log_file(const char *file)
+static void emit_or_buffer(char *line)
 {
-    FILE *new_log_file;
+    if (log_file)
+    {
+        fputs(line, log_file);
+        fflush(log_file);
+        free(line);
+        return;
+    }
 
-    _LOCK_LOG();
-    new_log_file = fopen(file, "w");
-    if (!new_log_file) {
-        _UNLOCK_LOG();
+    pending_log_line_t *pending = calloc(1, sizeof(*pending));
+    if (!pending)
+    {
+        free(line);
+        return;
+    }
+    pending->text = line;
+    if (pending_tail)
+        pending_tail->next = pending;
+    else
+        pending_head = pending;
+    pending_tail = pending;
+}
+
+void log_print(const char *fmt, ...)
+{
+    char message[2048];
+    char timestamp[80];
+    char *line;
+    const char *module_name;
+    va_list args;
+    int message_length;
+    int line_length;
+
+    if (!logger_enabled || !fmt)
+        return;
+
+    va_start(args, fmt);
+    message_length = vsnprintf(message, sizeof(message), fmt, args);
+    va_end(args);
+    if (message_length < 0)
+        return;
+
+    make_timestamp(timestamp, sizeof(timestamp));
+    module_name = context_module && context_module->name ? context_module->name : "unknown";
+    line_length = snprintf(NULL, 0, "%s %-7s %-8s %s%s",
+                           timestamp, log_level_name(context_level), module_name,
+                           message, message_length > 0 && message[message_length < (int)sizeof(message) ? message_length - 1 : (int)sizeof(message) - 2] == '\n' ? "" : "\n");
+    if (line_length < 0)
+        return;
+    line = malloc((size_t)line_length + 1);
+    if (!line)
+        return;
+    snprintf(line, (size_t)line_length + 1, "%s %-7s %-8s %s%s",
+             timestamp, log_level_name(context_level), module_name,
+             message, message_length > 0 && message[message_length < (int)sizeof(message) ? message_length - 1 : (int)sizeof(message) - 2] == '\n' ? "" : "\n");
+
+    lock_log();
+    emit_or_buffer(line);
+    unlock_log();
+}
+
+int set_log_file(const char *name)
+{
+    FILE *file;
+    pending_log_line_t *pending;
+
+    if (!logger_enabled)
+        return 0;
+    file = fopen(name, "a");
+    if (!file)
         return -1;
-    }
-    if (log_file && log_file != stdout && log_file != stderr)
-    {
-        fclose(log_file);
-    }
-    log_file = new_log_file;
 
-    _UNLOCK_LOG();
+    lock_log();
+    log_file = file;
+    pending = pending_head;
+    while (pending)
+    {
+        pending_log_line_t *next = pending->next;
+        fputs(pending->text, log_file);
+        free(pending->text);
+        free(pending);
+        pending = next;
+    }
+    pending_head = pending_tail = NULL;
+    fflush(log_file);
+    unlock_log();
     return 0;
 }
 
 void set_log_buffering(int buffer_size)
 {
-    log_flush();
-
-    if (log_buf)
-        free(log_buf);
-
-    if (buffer_size >= LINE_BUF_SIZE)
-    {
-        logp    = log_buf = (char *) malloc(buffer_size);
-        log_endp = logp + buffer_size;
-    }
-}
-
-void log_print(const char *fmt, ...)
-{
-    va_list          ap;
-    char             line[LINE_BUF_SIZE];
-    char             *line_long = NULL;
-    uint32_t         nb_tid     = 0, nb;
-    int              me     = 0;
-    time_t           now;
-    struct tm        ts;
-
-    if (!log_file)
-    {
-        return;
-    }
-
-    if (output_time_stamp)
-    {
-        time(&now);
-        ts = *localtime(&now);
-
-        nb_tid = snprintf(line, sizeof(line) - 1,
-                          "%04d-%02d-%02d %02d:%02d:%02d - ",
-                          ts.tm_year, ts.tm_mon + 1, ts.tm_mday,
-                          ts.tm_hour, ts.tm_min, ts.tm_sec);
-    }
-
-    nb_tid += snprintf(line + nb_tid, sizeof(line) - nb_tid - 1, "[%d]: ", me);
-
-    va_start(ap, fmt);
-    nb = nb_tid + vsnprintf(line + nb_tid, sizeof(line) - nb_tid - 1, fmt, ap);
-    va_end(ap);
-
-    /*
-     * Check if we might have run out of buffer space (in case we have a
-     * long line), and malloc a buffer just this once.
-     */
-    if (nb == sizeof(line) - 2)
-    {
-        line_long = (char *) malloc(LINE_BUF_SIZE * 8);
-        va_start(ap, fmt);
-        vsnprintf(line_long, LINE_BUF_SIZE, fmt, ap);
-        va_end(ap);
-        /* If this failed, we'll fall back to writing the truncated line. */
-    }
-
-    if (line_long)
-    {
-        nb = strlen(line_long);
-        _LOCK_LOG();
-        if (log_buf != 0)
-        {
-            _PUT_LOG(log_file, log_buf, logp - log_buf);
-            logp = log_buf;
-        }
-        /*
-         * Write out the thread id (with an optional timestamp) and the
-         * malloc'ed buffer.
-         */
-        _PUT_LOG(log_file, line, nb_tid);
-        _PUT_LOG(log_file, line_long, nb);
-        /* Ensure there is a trailing newline. */
-        if (!nb || (line_long[nb - 1] != '\n'))
-        {
-            char eol[2];
-            eol[0] = '\n';
-            eol[1] = '\0';
-            _PUT_LOG(log_file, eol, 1);
-        }
-        _UNLOCK_LOG();
-        free(line_long);
-    }
-    else
-    {
-        /* Ensure there is a trailing newline. */
-        if (nb && (line[nb - 1] != '\n'))
-        {
-            line[nb++] = '\n';
-            line[nb]   = '\0';
-        }
-        _LOCK_LOG();
-        if (log_buf == 0)
-        {
-            _PUT_LOG(log_file, line, nb);
-        }
-        else
-        {
-            /* If nb can't fit into logBuf, write out logBuf first. */
-            if (logp + nb > log_endp)
-            {
-                _PUT_LOG(log_file, log_buf, logp - log_buf);
-                logp = log_buf;
-            }
-            /* nb is guaranteed to fit into logBuf. */
-            memcpy(logp, line, nb);
-            logp += nb;
-        }
-        _UNLOCK_LOG();
-    }
-    log_flush();
+    (void)buffer_size;
 }
 
 void log_flush(void)
 {
-    if (log_buf && log_file)
+    lock_log();
+    if (log_file)
+        fflush(log_file);
+    unlock_log();
+}
+
+void log_destroy(void)
+{
+    pending_log_line_t *pending;
+    log_module_info_t *module;
+
+    lock_log();
+    if (log_file)
+        fclose(log_file);
+    log_file = NULL;
+    pending = pending_head;
+    while (pending)
     {
-        _LOCK_LOG();
-        if (logp > log_buf)
-        {
-            _PUT_LOG(log_file, log_buf, logp - log_buf);
-            logp = log_buf;
-        }
-        _UNLOCK_LOG();
+        pending_log_line_t *next = pending->next;
+        free(pending->text);
+        free(pending);
+        pending = next;
     }
+    pending_head = pending_tail = NULL;
+    module = log_modules;
+    while (module)
+    {
+        log_module_info_t *next = module->next;
+        free((char *)module->name);
+        free(module);
+        module = next;
+    }
+    log_modules = NULL;
+    time_provider = NULL;
+    unlock_log();
 }
 
-void log_abort(void)
+void log_assert(const char *expression, const char *file, int line)
 {
-    log_print("Aborting");
-    abort();
-}
-
-void log_assert(const char *s, const char *file, int ln)
-{
-    log_print("Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
+    log_set_context(context_module, LOG_ERROR);
+    log_print("assertion failed: %s (%s:%d)", expression, file, line);
     abort();
 }

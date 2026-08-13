@@ -32,22 +32,22 @@ static int iso_write_frame(scarletbook_output_format_t *ft, const uint8_t *buf, 
 {
     size_t result = fwrite(buf, 1, len * SACD_LSN_SIZE, ft->fd);
 	if(result != len * SACD_LSN_SIZE)
-	{ 		        
-		LOG(lm_main, LOG_ERROR, ("ERROR in iso_write_frame(): error writting in file.") );
-		return -1;               				
+	{
+		LOG(lm_output, LOG_ERROR, ("ERROR in iso_write_frame(): error writting in file.") );
+		return -1;
 	}
 	 return (int)result;
 }
 
-scarletbook_format_handler_t const * iso_format_fn(void) 
+scarletbook_format_handler_t const * iso_format_fn(void)
 {
-    static scarletbook_format_handler_t handler = 
+    static scarletbook_format_handler_t handler =
     {
-        "ISO Image", 
-        "iso", 
-        0, 
+        "ISO Image",
+        "iso",
+        0,
         iso_write_frame,
-        0, 
+        0,
         OUTPUT_FLAG_RAW,
         0
     };

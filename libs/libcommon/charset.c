@@ -64,7 +64,7 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 
 	if ((cd = iconv_open(to, from)) == (iconv_t)-1)
 	{
-		LOG(lm_main, LOG_ERROR, ("charset_convert(): iconv_open() = -1 => Conversion not supported. "
+		LOG(lm_metadata, LOG_ERROR, ("charset_convert(): iconv_open() = -1 => Conversion not supported. "
 			  "Charsets: %s -> %s", from, to));
 		goto Error_case_ret;
 	}
@@ -73,15 +73,15 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 	/* + 4 for nul in case len == 1 */
 	/* For macOS Sonoma 14.4/15: makes more room because iconv behaves different than GNU and did not have errno == E2BIG !!! */
 
-	outsize = (insizebytes + 1) * null_char_width;	
+	outsize = (insizebytes + 1) * null_char_width;
 
 	out = calloc(1,outsize);
 	if(out == NULL)
 	{
-		LOG(lm_main, LOG_ERROR, ("Error in charset_convert(): calloc() ret NULL!"));		
-      	goto Error_case_ret;
+		LOG(lm_metadata, LOG_ERROR, ("Error in charset_convert(): calloc() ret NULL!"));
+	goto Error_case_ret;
 	}
-	
+
 
 	outbytesleft = outsize - null_char_width;
 	outbytes_initial = outbytesleft;
@@ -108,7 +108,7 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 				}
 
 				outsize = outsize * 2 + null_char_width;
-				
+
 				out = realloc(out, outsize);
 				if(out == NULL)
 				  goto Error_case;
@@ -124,14 +124,14 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 				else
 					break;
 			case EINVAL:
-				LOG(lm_main, LOG_ERROR, ("charset_convert() -> case EINVAL; (Incomplete input sequence); "
-			  		"input=%p; outsize=: %zu", input,outsize));
+				LOG(lm_metadata, LOG_ERROR, ("charset_convert() -> case EINVAL; (Incomplete input sequence); "
+		"input=%p; outsize=: %zu", input,outsize));
 				goto Error_case;
 				break;
 			case EILSEQ: /*ill-formed input sequence*/
 				/* Invalid sequence, try to get the rest of the string */
-				LOG(lm_main, LOG_ERROR, ("charset_convert() -> case EILSEQ; (Invalid input sequence); "
-			  		"input=%p; outptr=%p; outsize=%zu", input,outptr,outsize));								   
+				LOG(lm_metadata, LOG_ERROR, ("charset_convert() -> case EILSEQ; (Invalid input sequence); "
+		"input=%p; outptr=%p; outsize=%zu", input,outptr,outsize));
 				if(input + 1 < instring + insizebytes)
 				{
 					input++;
@@ -141,7 +141,7 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 				break;
 
 			default:
-				LOG(lm_main, LOG_ERROR, ("charset_convert() ->  case Default. Conversion failed. Charsets: %s -> %s; Inputstring: %s; "
+				LOG(lm_metadata, LOG_ERROR, ("charset_convert() ->  case Default. Conversion failed. Charsets: %s -> %s; Inputstring: %s; "
 					  "errno=%X;  Error: %s",
 					  from,to,instring,errno, strerror(errno)));
 				goto Error_case;
@@ -149,7 +149,7 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 	}
 
 	iconv(cd,NULL,NULL,&outptr,&outbytesleft);
-	
+
     memset(outptr, 0, null_char_width);
 
 	iconv_close(cd);
@@ -160,13 +160,13 @@ char* charset_convert_ext(const char *instring, size_t insizebytes,size_t *outsi
 	return out;
 
 Error_case:
-	
+
 	iconv_close(cd);
 	free(out);
 
 Error_case_ret:
-	LOG(lm_main, LOG_ERROR, ("charset_convert() ->  Error_case_ret"));
-	// just return the clone of the input instring if calloc did not fail 
+	LOG(lm_metadata, LOG_ERROR, ("charset_convert() ->  Error_case_ret"));
+	// just return the clone of the input instring if calloc did not fail
 	out = calloc(1,insizebytes + null_char_width); // add null terminator
 	if(out != NULL)
 	{
@@ -182,7 +182,7 @@ Error_case_ret:
 // converts a string with insize bytes from  'from' encodings to 'to' encondings
 //      instring is input string to be converted
 //      insize is size of string in bytes !!!!
-//      returns a pointer to the converted string or, 
+//      returns a pointer to the converted string or,
 //                         in case of an error, a clone of the same input instring
 //      returns NULL only if instring is NULL or calloc fails.
 //  User must free the returned buffer !!!!

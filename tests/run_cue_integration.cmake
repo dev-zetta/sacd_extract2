@@ -1,0 +1,23 @@
+file(REMOVE_RECURSE "${WORK}")
+file(MAKE_DIRECTORY "${WORK}/output")
+execute_process(
+    COMMAND "${EXTRACTOR}" --no-log -2 -C -o "${WORK}/output" -i "${ISO}"
+    WORKING_DIRECTORY "${WORK}"
+    RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+    message(FATAL_ERROR "CUE integration extraction failed: ${result}")
+endif()
+file(GLOB_RECURSE cue_files "${WORK}/output/*.cue")
+file(GLOB_RECURSE xml_files "${WORK}/output/*.xml")
+list(LENGTH cue_files cue_count)
+list(LENGTH xml_files xml_count)
+if(cue_count LESS 1 OR xml_count LESS 1)
+    message(FATAL_ERROR "Expected generated CUE and XML files")
+endif()
+list(GET cue_files 0 cue_file)
+file(READ "${cue_file}" cue_content)
+string(REGEX MATCHALL "TRACK [0-9]+ AUDIO" cue_tracks "${cue_content}")
+list(LENGTH cue_tracks cue_track_count)
+if(NOT cue_track_count EQUAL 8)
+    message(FATAL_ERROR "Expected eight stereo tracks in the Genesis CUE, got ${cue_track_count}")
+endif()

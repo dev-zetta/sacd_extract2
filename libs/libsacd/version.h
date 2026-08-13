@@ -24,8 +24,8 @@
 #define _STRINGIZER(arg)     #arg
 #define STRINGIZER(arg)      _STRINGIZER(arg)
 
-//#define SACD_RIPPER_VERSION 00308
-#define SACD_RIPPER_VERSION_STRING STRINGIZER(GIT_COMMIT_HASH)
+#define SACD_RIPPER_VERSION_STRING "0.4.0"
+#define SACD_RIPPER_BUILD_STRING STRINGIZER(GIT_COMMIT_HASH)
 #define SACD_RIPPER_REPO STRINGIZER(GIT_REPO_URL)
 
 //#define SACD_RIPPER_VERSION_REVISION (SACD_RIPPER_VERSION / 100000)
@@ -33,8 +33,8 @@
 //#define SACD_RIPPER_VERSION_MINOR (SACD_RIPPER_VERSION % 100)
 
 #define SACD_RIPPER_VERSION_INFO                         \
-    "SACD extract 0.3.9.3 \n" \
-    SACD_RIPPER_VERSION_STRING "\n" \
-    "Copyright (c) 2010-2020 by respective authors.\n" \
+    "SACD extract " SACD_RIPPER_VERSION_STRING "\n" \
+    "Build " SACD_RIPPER_BUILD_STRING "\n" \
+    "Copyright (c) 2010-2026 by respective authors.\n" \
 
 #endif /* VERSION_H_INCLUDED */

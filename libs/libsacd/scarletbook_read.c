@@ -38,6 +38,7 @@
 #include "sacd_reader.h"
 #include "sacd_read_internal.h"
 #include "utils.h"
+#include "toc_recovery.h"
 
 #ifndef NDEBUG
 #define CHECK_ZERO0(arg)                                                       \
@@ -85,7 +86,7 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
     if (scarletbook_read_master_toc(sb)==0)
     {
         fwprintf(stdout, L"scarletbook_open: Can't read Master TOC !!\n");
-        LOG(lm_main, LOG_ERROR, ("Error: scarletbook_open: Can't read Master TOC !!"));
+        LOG(lm_toc, LOG_ERROR, ("Error: scarletbook_open: Can't read Master TOC !!"));
         free(sb->frame.data);
         free(sb);
         return NULL;
@@ -100,18 +101,23 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
         if (sb->area[sb->area_count].area_data == NULL)
         {
             fwprintf(stdout, L"Can't alocate memory for Area 1 (TWOCHTOC) TOC-1 !!\n");
-            LOG(lm_main, LOG_ERROR, ("Error: Can't alocate memory for Area 1 (TWOCHTOC) TOC-1 !!"));
+            LOG(lm_toc, LOG_ERROR, ("Error: Can't alocate memory for Area 1 (TWOCHTOC) TOC-1 !!"));
         }
         else
         {
             if (!sacd_read_block_raw(sacd, sb->master_toc->area_1_toc_1_start,(uint32_t) sb->master_toc->area_1_toc_size, sb->area[sb->area_count].area_data))
             {
                 fwprintf(stdout, L"Can't read Area 1 (TWOCHTOC) TOC-1 !! Trying to read and use TOC-2...\n");
-                LOG(lm_main, LOG_NOTICE, ("Warning: Can't read Area 1 (TWOCHTOC) TOC-1 !! Trying to read and use TOC-2..."));
-                flag_use_toc2 = 1;               
+                LOG(lm_toc, LOG_NOTICE, ("Warning: Can't read Area 1 (TWOCHTOC) TOC-1 !! Trying to read and use TOC-2..."));
+                flag_use_toc2 = 1;
             }
+            else if (area_toc_header_valid(sb->area[sb->area_count].area_data, "TWOCHTOC"))
+                flag_use_toc1 = 1;
             else
-              flag_use_toc1 = 1;
+            {
+                LOG(lm_toc, LOG_WARNING, ("Area 1 primary TOC header is invalid; trying backup"));
+                flag_use_toc2 = 1;
+            }
 
             // check if Area 1 (TWOCHTOC) TOC-1 is identical with backup AREA 1 (TWOCHTOC) TOC-2
             if (sb->master_toc->area_1_toc_2_start > 0) // Area 1 (TWOCHTOC) TOC-2
@@ -120,7 +126,7 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
                 if (sb->area[2].area_data == NULL)
                 {
                     fwprintf(stdout, L"Error: Can't alocate memory for backup Area 1 (TWOCHTOC) TOC-2.\n");
-                    LOG(lm_main, LOG_ERROR, ("Error: Can't alocate memory for backup Area 1 (TWOCHTOC) TOC-2."));
+                    LOG(lm_toc, LOG_ERROR, ("Error: Can't alocate memory for backup Area 1 (TWOCHTOC) TOC-2."));
                     flag_use_toc2 = 0;
                 }
                 else
@@ -128,27 +134,37 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
                     if (!sacd_read_block_raw(sacd, sb->master_toc->area_1_toc_2_start, (uint32_t)sb->master_toc->area_1_toc_size, sb->area[2].area_data))
                     {
                         fwprintf(stdout, L"Warning: can't read Area 1 (TWOCHTOC) TOC-2 !! There are some errros on disc !\n");
-                        LOG(lm_main, LOG_NOTICE, ("Warning: can't read Area 1 (TWOCHTOC) TOC-2 !! There are some errros on disc !"));
+                        LOG(lm_toc, LOG_NOTICE, ("Warning: can't read Area 1 (TWOCHTOC) TOC-2 !! There are some errros on disc !"));
                         flag_use_toc2 = 0;
                     }
-                    else  // compare
+                    else if (!area_toc_header_valid(sb->area[2].area_data, "TWOCHTOC"))
                     {
-                        // if not identical then copy TOC-2 in TOC-1. 
+                        LOG(lm_toc, LOG_WARNING, ("Area 1 backup TOC header is invalid; omitting backup"));
+                        flag_use_toc2 = 0;
+                    }
+                    else if (flag_use_toc1)  // compare two valid copies
+                    {
+                        // if not identical then copy TOC-2 in TOC-1.
                         int res_cmp = memcmp((const void *)sb->area[sb->area_count].area_data, (const void *)sb->area[2].area_data, (size_t)((size_t)sb->master_toc->area_1_toc_size * SACD_LSN_SIZE));
                         if (res_cmp != 0x00)
                         {
                             fwprintf(stdout, L"Warning: Area 1 (TWOCHTOC) TOC-1 did not match with Area 1 (TWOCHTOC) TOC-2. Disc has some errors !! Using TOC-1... \n");
-                            LOG(lm_main, LOG_NOTICE, ("Warning: Area 1 (TWOCHTOC) TOC-1 did not match with Area 1 (TWOCHTOC) TOC-2. Disc has some errors !! Using TOC-1... "));
+                            LOG(lm_toc, LOG_NOTICE, ("Warning: Area 1 (TWOCHTOC) TOC-1 did not match with Area 1 (TWOCHTOC) TOC-2. Disc has some errors !! Using TOC-1... "));
                             flag_use_toc1 = 1;
                             flag_use_toc2 = 0;
                         }
                     }
                     if (flag_use_toc2 == 1)
-                        memcpy((void *)sb->area[sb->area_count].area_data, (void *)sb->area[2].area_data, (size_t)((size_t)sb->master_toc->area_1_toc_size * SACD_LSN_SIZE));
+                        area_toc_copy_backup(sb->area[sb->area_count].area_data, sb->area[2].area_data,
+                                             (size_t)sb->master_toc->area_1_toc_size * SACD_LSN_SIZE);
 
                     free(sb->area[2].area_data);
                 }
-                
+
+            }
+            else if (!flag_use_toc1)
+            {
+                flag_use_toc2 = 0;
             }
 
             if (((flag_use_toc1 == 1) || (flag_use_toc2 == 1)) &&
@@ -157,11 +173,15 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
                 ++sb->area_count;
             }
             else
-                fwprintf(stdout, L"libsacdread: Erors processing Area 1 (TWOCHTOC)!!\n");                        
+            {
+                fwprintf(stdout, L"libsacdread: Erors processing Area 1 (TWOCHTOC)!!\n");
+                free(sb->area[sb->area_count].area_data);
+                sb->area[sb->area_count].area_data = NULL;
+            }
         }
 
     }
- 
+
     if (sb->master_toc->area_2_toc_1_start > 0) //  Area 2 (MULCHTOC) TOC-1
     {
         int flag_use_toc1 = 0;
@@ -171,18 +191,23 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
         if (!sb->area[sb->area_count].area_data)
         {
             fwprintf(stdout, L"Error: can't alocate memory for Area 2 (MULCHTOC) TOC-1 !!\n");
-            LOG(lm_main, LOG_ERROR, ("Error: can't alocate memory for Area 2 (MULCHTOC) TOC-1 !!"));
+            LOG(lm_toc, LOG_ERROR, ("Error: can't alocate memory for Area 2 (MULCHTOC) TOC-1 !!"));
         }
         else
         {
             if (!sacd_read_block_raw(sacd, sb->master_toc->area_2_toc_1_start, (uint32_t)sb->master_toc->area_2_toc_size, sb->area[sb->area_count].area_data))
             {
                 fwprintf(stdout, L"Error: can't read Area 2 (MULCHTOC) TOC-1 !! Trying to read and use TOC-2...\n");
-                LOG(lm_main, LOG_ERROR, ("Error: can't read Area 2 (MULCHTOC) TOC-1 !! Trying to read and use TOC-2..."));
+                LOG(lm_toc, LOG_ERROR, ("Error: can't read Area 2 (MULCHTOC) TOC-1 !! Trying to read and use TOC-2..."));
                 flag_use_toc2 = 1;
             }
-            else
+            else if (area_toc_header_valid(sb->area[sb->area_count].area_data, "MULCHTOC"))
                 flag_use_toc1 = 1;
+            else
+            {
+                LOG(lm_toc, LOG_WARNING, ("Area 2 primary TOC header is invalid; trying backup"));
+                flag_use_toc2 = 1;
+            }
 
             // check if are identical Area 2 (MULCHTOC) TOC-1 with backup Area 2 (MULCHTOC) TOC-2
             if (sb->master_toc->area_2_toc_2_start > 0) // Area 2 (MULCHTOC) TOC-2
@@ -194,15 +219,20 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
                     fwprintf(stdout, L"Error: can't alocate memory for backup Area 2 (MULCHTOC)  TOC-2.\n");
                     flag_use_toc2 = 0;
                 }
-                else 
+                else
                 {
                     if (!sacd_read_block_raw(sacd, sb->master_toc->area_2_toc_2_start, (uint32_t)sb->master_toc->area_2_toc_size, sb->area[3].area_data))
                     {
                         fwprintf(stdout, L"Warning: can't read Area 2 (MULCHTOC) TOC-2 !! There are some errros on disc !\n");
-                        LOG(lm_main, LOG_NOTICE, ("Warning: can't read Area 2 (MULCHTOC) TOC-2 !! There are some errros on disc !"));
+                        LOG(lm_toc, LOG_NOTICE, ("Warning: can't read Area 2 (MULCHTOC) TOC-2 !! There are some errros on disc !"));
                         flag_use_toc2 = 0;
                     }
-                    else // compare
+                    else if (!area_toc_header_valid(sb->area[3].area_data, "MULCHTOC"))
+                    {
+                        LOG(lm_toc, LOG_WARNING, ("Area 2 backup TOC header is invalid; omitting backup"));
+                        flag_use_toc2 = 0;
+                    }
+                    else if (flag_use_toc1) // compare two valid copies
                     {
                         // if not identical then copy TOC-2 in TOC-1.
                         int res_cmp = memcmp((const void *)sb->area[sb->area_count].area_data, (const void *)sb->area[3].area_data, (size_t)((size_t)sb->master_toc->area_2_toc_size * SACD_LSN_SIZE));
@@ -214,19 +244,28 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
                         }
                     }
                     if (flag_use_toc2 == 1)
-                        memcpy((void *)sb->area[sb->area_count].area_data, (void *)sb->area[2].area_data, (size_t)((size_t)sb->master_toc->area_1_toc_size * SACD_LSN_SIZE));
+                        area_toc_copy_backup(sb->area[sb->area_count].area_data, sb->area[3].area_data,
+                                             (size_t)sb->master_toc->area_2_toc_size * SACD_LSN_SIZE);
 
                     free(sb->area[3].area_data);
                 }
+            }
+            else if (!flag_use_toc1)
+            {
+                flag_use_toc2 = 0;
             }
 
             if (((flag_use_toc1 == 1) || (flag_use_toc2 == 1) ) &&
                 ( scarletbook_read_area_toc(sb, sb->area_count) == 1) )
             {
-                ++sb->area_count;               
+                ++sb->area_count;
             }
             else
-              fwprintf(stdout, L"Error processing Area 2 (MULCHTOC). \n");
+            {
+                fwprintf(stdout, L"Error processing Area 2 (MULCHTOC). \n");
+                free(sb->area[sb->area_count].area_data);
+                sb->area[sb->area_count].area_data = NULL;
+            }
         }
     }
 
@@ -243,7 +282,7 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd)
 static void free_area(scarletbook_area_t *area)
 {
     int i;
-    
+
     for (i = 0; i < area->area_toc->track_count; i++)
     {
         free(area->area_track_text[i].track_type_title);
@@ -305,7 +344,7 @@ void scarletbook_close(scarletbook_handle_t *handle)
         free(mt->disc_publisher_phonetic);
         free(mt->disc_copyright);
         free(mt->disc_copyright_phonetic);
-    } 
+    }
 
     if (handle->master_data)
         free((void *) handle->master_data);
@@ -337,10 +376,10 @@ static int scarletbook_read_master_toc(scarletbook_handle_t *handle)
 
     master_toc = handle->master_toc = (master_toc_t *) handle->master_data;
 
-    if (strncmp("SACDMTOC", master_toc->id, 8) != 0)
+    if (!master_toc_header_valid((const uint8_t *)master_toc->id))
     {
         fwprintf(stdout, L"scarletbook_read_master_toc: Not a ScarletBook disc!\n");
-        LOG(lm_main, LOG_ERROR, ("scarletbook_read_master_toc(): Not a ScarletBook disc!"));
+        LOG(lm_toc, LOG_ERROR, ("scarletbook_read_master_toc(): Not a ScarletBook disc!"));
         return 0;
     }
 
@@ -357,7 +396,7 @@ static int scarletbook_read_master_toc(scarletbook_handle_t *handle)
     if (master_toc->version.major > SUPPORTED_VERSION_MAJOR || master_toc->version.minor > SUPPORTED_VERSION_MINOR)
     {
         fwprintf(stdout, L"libsacdread: Unsupported version: %i.%02i\n", master_toc->version.major, master_toc->version.minor);
-        LOG(lm_main, LOG_ERROR, ("libsacdread: Unsupported version: %i.%02i", master_toc->version.major, master_toc->version.minor));
+        LOG(lm_toc, LOG_ERROR, ("libsacdread: Unsupported version: %i.%02i", master_toc->version.major, master_toc->version.minor));
         return 0;
     }
 
@@ -372,12 +411,12 @@ static int scarletbook_read_master_toc(scarletbook_handle_t *handle)
     if (max_sectors <= total_sectors)
     {
         fwprintf(stdout, L"The size of sacd is ok (sectors=%d). Size is: %llu bytes, %.3f GB (gigabyte) \n", total_sectors, (uint64_t)total_sectors * SACD_LSN_SIZE, (double)total_sectors * SACD_LSN_SIZE / (1000 * 1000 * 1000));
-        LOG(lm_main, LOG_NOTICE, ("Notice in scarletbook_read_master():The size of sacd is ok (sectors=%d). Size is: %llu bytes, %.3f GB (gigabyte)", total_sectors, (uint64_t)total_sectors * SACD_LSN_SIZE, (double)total_sectors * SACD_LSN_SIZE / (1000 * 1000 * 1000)));
+        LOG(lm_toc, LOG_NOTICE, ("Notice in scarletbook_read_master():The size of sacd is ok (sectors=%d). Size is: %llu bytes, %.3f GB (gigabyte)", total_sectors, (uint64_t)total_sectors * SACD_LSN_SIZE, (double)total_sectors * SACD_LSN_SIZE / (1000 * 1000 * 1000)));
     }
     else
     {
         fwprintf(stdout, L"\nError: the reported size (sectors) of sacd is not ok (sectors=%u) < (max_sectors=%u) !\n", total_sectors, max_sectors);
-        LOG(lm_main, LOG_ERROR, ("Error in scarletbook_read_master_toc(): the reported size (sectors) of sacd is not ok (sectors=%u) < (max_sectors=%u)", total_sectors, max_sectors));
+        LOG(lm_toc, LOG_ERROR, ("Error in scarletbook_read_master_toc(): the reported size (sectors) of sacd is not ok (sectors=%u) < (max_sectors=%u)", total_sectors, max_sectors));
         //return 0;
     }
 
@@ -412,7 +451,7 @@ static int scarletbook_read_master_toc(scarletbook_handle_t *handle)
         if (strncmp("SACDText", master_text->id, 8) != 0)
         {
             fwprintf(stdout, L"\nError in scarletbook_read_master_toc(): SACDText did not found at LANGUAGE idx=[%d]\n",i);
-            LOG(lm_main, LOG_ERROR, ("Error in scarletbook_read_master_toc(): SACDText did not found at LANGUAGE idx=[%d]",i));
+            LOG(lm_toc, LOG_ERROR, ("Error in scarletbook_read_master_toc(): SACDText did not found at LANGUAGE idx=[%d]",i));
             return 0;
         }
 
@@ -490,7 +529,7 @@ static int scarletbook_read_master_toc(scarletbook_handle_t *handle)
     if (strncmp("SACD_Man", handle->master_man->id, 8) != 0)
     {
         fwprintf(stdout, L"\nError in scarletbook_read_master_toc(): SACD_Man did not found!!!\n");
-        LOG(lm_main, LOG_ERROR, ("Error in scarletbook_read_master_toc(): SACD_Man did not found!!"));
+        LOG(lm_toc, LOG_ERROR, ("Error in scarletbook_read_master_toc(): SACD_Man did not found!!"));
         return 0;
     }
 
@@ -518,7 +557,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     if (strncmp("TWOCHTOC", area_toc->id, 8) != 0 && strncmp("MULCHTOC", area_toc->id, 8) != 0)
     {
         fwprintf(stdout, L"libsacdread: Not a valid Area TOC!\n");
-        LOG(lm_main, LOG_ERROR, ("Error in scarletbook_read_area_toc(): libsacdread: Not a valid Area TOC!"));
+        LOG(lm_toc, LOG_ERROR, ("Error in scarletbook_read_area_toc(): libsacdread: Not a valid Area TOC!"));
         return 0;
     }
 
@@ -546,14 +585,14 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     if(area_toc->track_text_offset != 0 && area_toc->track_text_offset != 5 && area_toc->track_text_offset != 37 )
     {
         fwprintf(stdout, L"Notice in scarletbook_read_area_toc(): Track_Text_Ptr is not 0, 5 or 37 \n");
-        LOG(lm_main, LOG_NOTICE, ("Notice in scarletbook_read_area_toc(): Track_Text_Ptr is not 0, 5 or 37 "));
+        LOG(lm_toc, LOG_NOTICE, ("Notice in scarletbook_read_area_toc(): Track_Text_Ptr is not 0, 5 or 37 "));
     }
 
     character_set_idx = area->area_toc->languages[sacd_text_idx].character_set & 0x07;
     if(character_set_idx < MAX_LANGUAGE_COUNT )
         current_charset = (char *)character_set[character_set_idx];
     else
-        current_charset = (char *)character_set[2]; // set default  to 'ISO-8859-1'    
+        current_charset = (char *)character_set[2]; // set default  to 'ISO-8859-1'
 
     if (area_toc->area_description_offset)
         area->description = charset_convert((char *)area_toc + area_toc->area_description_offset, strlen((char *)area_toc + area_toc->area_description_offset), current_charset, "UTF-8");
@@ -567,7 +606,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     if (area_toc->version.major > SUPPORTED_VERSION_MAJOR || area_toc->version.minor > SUPPORTED_VERSION_MINOR)
     {
         fwprintf(stdout, L"Notice in scarletbook_read_area_toc(): Unsupported area_toc version: %2i.%2i\n", area_toc->version.major, area_toc->version.minor);
-        LOG(lm_main, LOG_NOTICE, ("Notice in scarletbook_read_area_toc(): Unsupported area_toc version: %2i.%2i", area_toc->version.major, area_toc->version.minor));
+        LOG(lm_toc, LOG_NOTICE, ("Notice in scarletbook_read_area_toc(): Unsupported area_toc version: %2i.%2i", area_toc->version.major, area_toc->version.minor));
     }
 
     // is this the 2 channel?
@@ -600,7 +639,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
         }
         else if (strncmp((char *) p, "SACDTRL2", 8) == 0)   // Track_List_2 must always be present in an Area TOC !!!
         {
-            area->area_tracklist_time = (area_tracklist_t *) p;            
+            area->area_tracklist_time = (area_tracklist_t *) p;
             p += SACD_LSN_SIZE; total_sectors_read +=1;
             Track_List_2_is_present = 1;
         }
@@ -618,7 +657,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
         {
             // skip
             p += SACD_LSN_SIZE * 32;total_sectors_read +=32;
-        }                
+        }
         else if ((area_toc->track_text_offset != 0) && strncmp((char *) p, "SACDTTxt", 8) == 0)  // Track_Text is only present if Track_Text_Ptr is not set to zero
         {   //The maximum length of Track_Text is 32 Sectors
             // we discard all other SACDTTxt entries  ; If Track_Text is present, it must contain minimally one Text_Item
@@ -626,8 +665,8 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
             if (sacd_text_idx == 0) // N_Text_Channels
             {
 
-                //LOG(lm_main, LOG_NOTICE, ("scarletbook_read: read_area_toc() ; area[%d]",area_idx));
-                //print_hex_dump(LOG_NOTICE, "SACDTTxt:", 64, 1, p, 128, 1);                
+                //LOG(lm_toc, LOG_NOTICE, ("scarletbook_read: read_area_toc() ; area[%d]",area_idx));
+                //print_hex_dump(LOG_NOTICE, "SACDTTxt:", 64, 1, p, 128, 1);
                 //for (tno=1; tno<=N_Tracks; tno++)
                 for (i = 0; i < area_toc->track_count; i++)
                 {
@@ -637,17 +676,17 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
                     Track_Text_Item_Ptr* area_text;
                     uint8_t        track_type, track_items;
                     char           *track_ptr;
-                    area_text = area->area_text = (Track_Text_Item_Ptr*) p;  // Track_Text_Item_Ptr[c][tno] , 2 bytes 
-                    SWAP16(area_text->track_text_position[i]);  // Track_Text_Item_Ptr[c][tno] , 2 bytes 
-                    
-                    //LOG(lm_main, LOG_NOTICE, ("scarletbook_read: read_area_toc() ; area_text->track_text_position, Track_Text_Item_Ptr[0][%d] =%d",i,area_text->track_text_position[i]));
+                    area_text = area->area_text = (Track_Text_Item_Ptr*) p;  // Track_Text_Item_Ptr[c][tno] , 2 bytes
+                    SWAP16(area_text->track_text_position[i]);  // Track_Text_Item_Ptr[c][tno] , 2 bytes
+
+                    //LOG(lm_toc, LOG_NOTICE, ("scarletbook_read: read_area_toc() ; area_text->track_text_position, Track_Text_Item_Ptr[0][%d] =%d",i,area_text->track_text_position[i]));
                     if (area_text->track_text_position[i] > 0)
                     {
                         track_ptr = (char *) (p + area_text->track_text_position[i]);
                         //DEBUG
                         //print_hex_dump(LOG_NOTICE, "N_Items:", 64, 1, track_ptr, 64, 1);
                         track_items = *track_ptr; //N_Items[c][tno], 1 byte, values 1..10
-                        //LOG(lm_main, LOG_NOTICE, ("scarletbook_read: read_area_toc() ; (track_items), N_Items[0][%d] =%d",i,track_items));
+                        //LOG(lm_toc, LOG_NOTICE, ("scarletbook_read: read_area_toc() ; (track_items), N_Items[0][%d] =%d",i,track_items));
 
                         track_ptr += 4;    // ---> Text_Item[c][tno][item], format TOC_Text
                         for (j = 0; j < track_items; j++)  // for (item=1; item<=N_Items[c][tno]; item++)
@@ -658,7 +697,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
                             if(*track_ptr != 0x20)
                             {
                                 fwprintf(stdout, L"\n\n Error: Padding1 has not 0x20 value !!\n");
-                                LOG(lm_main, LOG_ERROR, ("Error in scarletbook_read: Padding1 has not 0x20 value !!"));   
+                                LOG(lm_toc, LOG_ERROR, ("Error in scarletbook_read: Padding1 has not 0x20 value !!"));
                             }
 
                             track_ptr++;              // Sp_String ; skip unknown 0x20, after SP_String follows Padding2 with variable lenght 0..3 bytesl;  value 0x00
@@ -672,11 +711,11 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
                                 if (track_text_len > 1024)
                                 {
                                     fwprintf(stdout, L"\n\n Warning: The lenght of track text is bigger than 1024!!; area_idx=%d; track_type=0x%02x; track number=%d", area_idx, track_type, i + 1);
-                                    LOG(lm_main, LOG_NOTICE, ("Warning in scarletbook_read: The lenght of track text is bigger than 1024 !!; area_idx=%d; track_type=0x%02x; track number=%d\n", area_idx, track_type, i + 1));
+                                    LOG(lm_toc, LOG_NOTICE, ("Warning in scarletbook_read: The lenght of track text is bigger than 1024 !!; area_idx=%d; track_type=0x%02x; track number=%d\n", area_idx, track_type, i + 1));
                                     track_text_len = 1024; //break;
                                 }
 
-                                // check if exists illegal char code  
+                                // check if exists illegal char code
                                 // [e.g Savall - The Celtic Viol - La Viole Celtique - The Treble Viol- AVSA9865 - has incorrect char code = 0x19 in text of Composer in tracks 5,6,7,15,21 !!]
                                 char * track_ptr1 = track_ptr;
                                 for(int te=0; te < (int)track_text_len; te++)
@@ -685,21 +724,21 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
                                     {
                                         *((uint8_t *)track_ptr1) = (uint8_t)0x20;
                                         fwprintf(stdout, L"\n\n Warning: Illegal char in the track text! Corrected.; area_idx=%d; track_type=0x%02x; track number=%d\n", area_idx, track_type, i + 1);
-                                        LOG(lm_main, LOG_NOTICE, ("Warning: Illegal char in the track text! Corrected. ;area_idx=%d; track_type=0x%02x; track number=%d", area_idx, track_type, i + 1));
-                                    }                                      
-                                    track_ptr1 ++;                                         
+                                        LOG(lm_toc, LOG_NOTICE, ("Warning: Illegal char in the track text! Corrected. ;area_idx=%d; track_type=0x%02x; track number=%d", area_idx, track_type, i + 1));
+                                    }
+                                    track_ptr1 ++;
                                 }
                                 //DEBUG
-                                //LOG(lm_main, LOG_NOTICE, ("Notice: track_ptr:%s; strlen()=%d; track_type=0x%02x; track number=%d", track_ptr, track_text_len, track_type, i + 1));
+                                //LOG(lm_toc, LOG_NOTICE, ("Notice: track_ptr:%s; strlen()=%d; track_type=0x%02x; track number=%d", track_ptr, track_text_len, track_type, i + 1));
 
                                 char *track_text_converted_ptr = charset_convert(track_ptr, track_text_len, current_charset, "UTF-8");
                                 if(track_text_converted_ptr == NULL || strlen(track_text_converted_ptr)==0)
                                 {
                                     fwprintf(stdout, L"\n\n Error: Cannot convert to UTF8 the track text!!; track_type=0x%02x; track number=%d", track_type, i + 1);
-                                    LOG(lm_main, LOG_ERROR, ("Error: Cannot convert to UTF8 the track text!!; track_type=0x%02x; track number=%d", track_type, i+1));
+                                    LOG(lm_toc, LOG_ERROR, ("Error: Cannot convert to UTF8 the track text!!; track_type=0x%02x; track number=%d", track_type, i+1));
                                 }
                                 //DEBUG
-                                LOG(lm_main, LOG_NOTICE, ("Notice: track_text_converted_ptr --> UTF8:%s; strlen()=%d; track_type=0x%02x; track number=%d", track_text_converted_ptr, (int)strlen(track_text_converted_ptr) ,track_type, i + 1));
+                                LOG(lm_toc, LOG_NOTICE, ("Notice: track_text_converted_ptr --> UTF8:%s; strlen()=%d; track_type=0x%02x; track number=%d", track_text_converted_ptr, (int)strlen(track_text_converted_ptr) ,track_type, i + 1));
 
                                 switch (track_type)
                                 {
@@ -750,16 +789,16 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
                                         break;
                                     case TRACK_TYPE_COPYRIGHT_PHONETIC:
                                         area->area_track_text[i].track_type_copyright_phonetic = track_text_converted_ptr;
-                                        break;                                     
+                                        break;
                                     default:
                                         fwprintf(stdout, L"\n\n Notice: Unknown track text type!!\n");
-                                        LOG(lm_main, LOG_NOTICE, ("Notice : scarletbook_read_area_toc(), Unknown track text type: 0x%02x", track_type));
+                                        LOG(lm_toc, LOG_NOTICE, ("Notice : scarletbook_read_area_toc(), Unknown track text type: 0x%02x", track_type));
                                         break;
                                 }
                             }
                             if (j < track_items - 1)
                             {
-                                while (*track_ptr != 0) 
+                                while (*track_ptr != 0)
                                     track_ptr++;
 
                                 while (*track_ptr == 0) // Padding2, 0..3 bytes, value=0x00
@@ -773,7 +812,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
             p += SACD_LSN_SIZE;total_sectors_read +=1;
             if(total_sectors_read >= area_toc->size)break;
         }
-        else        
+        else
         {
             break;
         }
@@ -782,7 +821,7 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     if(Track_List_1_is_present ==0 || Track_List_2_is_present == 0 || ISRC_and_Genre_List_is_present == 0 )
     {
         fwprintf(stdout, L"\n\n Error: Track_List_1 or Track_List_2 or ISRC_and_Genre_List are not detected !!!\n");
-        LOG(lm_main, LOG_ERROR, ("Error: Warning: Track_List_1 or Track_List_2 or ISRC_and_Genre_List are not detected !!!"));
+        LOG(lm_toc, LOG_ERROR, ("Error: Warning: Track_List_1 or Track_List_2 or ISRC_and_Genre_List are not detected !!!"));
         return 0;
     }
 
@@ -827,7 +866,7 @@ static inline int get_channel_count(audio_frame_info_t *frame_info)
 static inline void exec_read_callback(scarletbook_handle_t *handle, frame_read_callback_t frame_read_callback, void *userdata)
 {
         handle->frame.started = 0;
-        frame_read_callback(handle, handle->frame.data, handle->frame.size, userdata);  
+        frame_read_callback(handle, handle->frame.data, handle->frame.size, userdata);
 }
 
 
@@ -841,16 +880,28 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
     int frame_info_idx;
     uint8_t packet_info_idx;
     uint8_t *read_buffer_ptr_blocks = read_buffer;
-    uint8_t *read_buffer_ptr;    
-    int sector_bad_reads = 0;
+    uint8_t *read_buffer_ptr;
+    int media_defects = 0;
     int nr_frames_proccesed=0;
     read_buffer_ptr = read_buffer_ptr_blocks;
 
     for (int j = 0; j < blocks_read_in; j++)
-    {            
+    {
+        int sector_bad = 0;
+        uint8_t *sector_end = read_buffer_ptr_blocks + SACD_LSN_SIZE;
         // read Audio Sector Header
         memcpy(&handle->audio_sector.header, read_buffer_ptr, AUDIO_SECTOR_HEADER_SIZE);
         read_buffer_ptr += AUDIO_SECTOR_HEADER_SIZE;
+
+        if (handle->audio_sector.header.packet_info_count > 7)
+        {
+            sector_bad = 1;
+            handle->frame.started = 0;
+            handle->frame.size = 0;
+            LOG(lm_toc, LOG_ERROR, ("malformed audio sector: packet count=%u block=%d",
+                                    handle->audio_sector.header.packet_info_count, j));
+            goto next_sector;
+        }
 
         // read Audio Packet Info Header
 #if defined(__BIG_ENDIAN__)
@@ -868,7 +919,7 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
             }
         }
 #endif
-        //  read Audio Frame Info Header 
+        //  read Audio Frame Info Header
         if (handle->audio_sector.header.dst_encoded)
         {
             if (handle->audio_sector.header.frame_info_count > 0)
@@ -886,15 +937,6 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
             }
         }
 
-        if(handle->audio_sector.header.packet_info_count > (uint8_t)7)  // max 7 packets must contain an audio sector
-        {
-            sector_bad_reads = 1;
-            handle->frame.started = 0;
-
-            fwprintf(stdout, L"\n ERROR: scarletbook_process_frames(), > Max 7 packets!!\n");
-            LOG(lm_main, LOG_ERROR, ("Error : scarletbook_process_frames(). > Max 7 packets!!, handle->audio_sector.header.packet_info_count:%d", handle->audio_sector.header.packet_info_count));
-        }
-        
         handle->frame_info_idx = 0;
         frame_info_idx = 0;
         for (packet_info_idx = 0; packet_info_idx < handle->audio_sector.header.packet_info_count; packet_info_idx++) //&& (sector_bad_reads == 0)
@@ -902,15 +944,32 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
             audio_packet_info_t* packet = &handle->audio_sector.packet[packet_info_idx];
             if(packet->packet_length > MAX_PACKET_SIZE)
             {
-                sector_bad_reads = 1;
+                sector_bad = 1;
                 continue;
             }
-            switch (packet->data_type) 
+            if (read_buffer_ptr + packet->packet_length > sector_end)
+            {
+                sector_bad = 1;
+                handle->frame.started = 0;
+                handle->frame.size = 0;
+                LOG(lm_toc, LOG_ERROR, ("malformed audio sector: packet exceeds sector block=%d", j));
+                break;
+            }
+            switch (packet->data_type)
             {
                 case DATA_TYPE_AUDIO:
                     if (packet->frame_start)
                     {
-                        // If frame is already started 
+                        if (frame_info_idx >= handle->audio_sector.header.frame_info_count)
+                        {
+                            sector_bad = 1;
+                            handle->frame.started = 0;
+                            handle->frame.size = 0;
+                            LOG(lm_toc, LOG_ERROR,
+                                ("malformed audio sector: frame start has no frame info block=%d", j));
+                            break;
+                        }
+                        // If frame is already started
                         // try to save the entire previous audio frame
                         // checks if we have a completed frame
                         if (handle->frame.started){
@@ -919,22 +978,31 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
                                     (!handle->frame.dst_encoded && handle->frame.size == handle->frame.channel_count * FRAME_SIZE_64))
                                 {
                                     exec_read_callback(handle, frame_read_callback, userdata);
-                                    nr_frames_proccesed ++;                                  
-                                } 
+                                    nr_frames_proccesed ++;
+                                }
+                                else
+                                {
+                                    sector_bad = 1;
+                                    LOG(lm_toc, LOG_WARNING,
+                                        ("incomplete audio frame discarded previous_timecode=%u current_timecode=%u",
+                                         TIME_FRAMECOUNT(&handle->frame.timecode),
+                                         TIME_FRAMECOUNT(&handle->audio_sector.frame[frame_info_idx].timecode)));
+                                }
                             }
                         }
                         //check if timecode is consecutive (didn't miss a frame)
                         uint32_t frametimecode_prev=TIME_FRAMECOUNT(&handle->frame.timecode);
                         uint32_t frametimecode_current =TIME_FRAMECOUNT(&handle->audio_sector.frame[frame_info_idx].timecode);
-                       
+
                         if (frametimecode_prev > 0)
                         {
                             // check if is consecutive
                             if(frametimecode_current != frametimecode_prev + 1 )
                             {
-                                LOG(lm_main, LOG_ERROR, ("Error : scarletbook_process_frames(), frametimecode not succesive! frametimecode_current:%u, frametimecode_prev:%u", frametimecode_current, frametimecode_prev));
+                                LOG(lm_toc, LOG_ERROR, ("Error : scarletbook_process_frames(), frametimecode not succesive! frametimecode_current:%u, frametimecode_prev:%u", frametimecode_current, frametimecode_prev));
+                                sector_bad = 1;
                             }
-                        }                       
+                        }
 
                         handle->frame.size = 0;
                         handle->frame.dst_encoded = handle->audio_sector.header.dst_encoded;
@@ -962,12 +1030,12 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
                         }
                         else
                         {
-                            sector_bad_reads = 1;
+                            sector_bad = 1;
                             // buffer overflow error, try next frame..
                             handle->frame.started = 0;
 
                             fwprintf(stdout, L"\n ERROR: scarletbook_process_frames(), buffer overflow error in blocks_read:%d\n", j);
-                            LOG(lm_main, LOG_ERROR, ("Error : scarletbook_process_frames(), buffer overflow error. in blocks_read:%d", j));                                                      
+                            LOG(lm_toc, LOG_ERROR, ("Error : scarletbook_process_frames(), buffer overflow error. in blocks_read:%d", j));
                         }
                     }
                     break;
@@ -977,7 +1045,7 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
                 default:
                     break;
             }  // switch (packet->data_type)
-            
+
             //if(sector_bad_reads > 0)
             //  break;
             // advance the source pointer
@@ -985,6 +1053,9 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
 
         } // end for  packet_info_idx
 
+next_sector:
+        if (sector_bad)
+            media_defects++;
         // obtain the next sector data block
         read_buffer_ptr_blocks += SACD_LSN_SIZE;
         read_buffer_ptr = read_buffer_ptr_blocks;
@@ -996,7 +1067,7 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
         // If frame is already started
         // try to save the entire last audio frame
         // checks if we have a completed audio frame
-        
+
         if (handle->frame.started)
         {
             if (handle->frame.size > 0){
@@ -1005,15 +1076,15 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
                 {
                     exec_read_callback(handle, frame_read_callback, userdata);
                     nr_frames_proccesed++;
-                    
+
                 }
-            }  
+            }
         }
     }
 
 
-    if (sector_bad_reads > 0)
-        return -1;  
+    if (media_defects > 0)
+        return -media_defects;
     else
         return nr_frames_proccesed;
 }

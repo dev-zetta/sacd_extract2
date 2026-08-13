@@ -27,7 +27,7 @@
 #include <inttypes.h>
 
 
-//  #if defined(__MINGW32__) || defined(_WIN32) 
+//  #if defined(__MINGW32__) || defined(_WIN32)
 //  #   undef  lseek
 //  #   define lseek            _lseeki64
 //  #   undef  fseeko
@@ -47,22 +47,40 @@
 //  #endif
 
 
-//64 bit file access is the natural file access type for Cygwin. off_t is 8 bytes. 
-//There are no foo64 functions for that reason. 
+//64 bit file access is the natural file access type for Cygwin. off_t is 8 bytes.
+//There are no foo64 functions for that reason.
 //Just use fopen and friends and you get 64 bit file access for free.
 
-// for linux it is already added preprocessor coomand in cmake text 
+// for linux it is already added preprocessor coomand in cmake text
 //   -D_FILE_OFFSET_BITS=64
 // #define _FILE_OFFSET_BITS 64
 
 typedef struct sacd_input_s * sacd_input_t;
 
+typedef enum sacd_input_status_e
+{
+    SACD_INPUT_COMPLETE = 0,
+    SACD_INPUT_SHORT,
+    SACD_INPUT_EOF,
+    SACD_INPUT_RETRIABLE,
+    SACD_INPUT_FATAL
+} sacd_input_status_t;
+
+typedef struct sacd_input_read_result_s
+{
+    sacd_input_status_t status;
+    uint32_t blocks_read;
+    int error_number;
+    char error_string[256];
+} sacd_input_read_result_t;
+
 extern sacd_input_t (*sacd_input_open)         (const char *);
 extern int          (*sacd_input_close)        (sacd_input_t);
 extern uint32_t     (*sacd_input_read)         (sacd_input_t, uint32_t, uint32_t, void *);
+extern sacd_input_read_result_t (*sacd_input_read_ex)(sacd_input_t, uint32_t, uint32_t, void *);
 extern char *       (*sacd_input_error)        (sacd_input_t);
 extern uint32_t     (*sacd_input_total_sectors)(sacd_input_t);
 
-int sacd_input_setup(const char *); 
+int sacd_input_setup(const char *);
 
 #endif /* SACD_INPUT_H_INCLUDED */

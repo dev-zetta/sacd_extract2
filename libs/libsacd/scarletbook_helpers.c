@@ -72,7 +72,7 @@ int utf8cpy(char *dst, char *src, int n)
         {
             break;
         }
-        
+
         if (i + c <= n)
         {
             memcpy(dst + i, src + i, c * sizeof(char));
@@ -158,22 +158,22 @@ char *get_album_dir(scarletbook_handle_t *handle)
 
         pos = strchr(p_artist, ';');
         if (pos != NULL && pos < pos_end)
-            pos_end = pos;       
+            pos_end = pos;
         pos = strchr(p_artist, '/'); // standard artist separator
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
         pos = strchr(p_artist, ',');
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
-        // pos = strchr(p_artist, '.'); 
+        // pos = strchr(p_artist, '.');
         //if (pos != NULL && pos < pos_end)
         //    pos_end = pos;
         pos = strstr(p_artist, " -");
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
-        
+
         strncpy(disc_artist, p_artist, min(pos_end - p_artist, MAX_DISC_ARTIST_LEN));
-        
+
         sanitize_filename(disc_artist);
     }
 
@@ -194,8 +194,8 @@ char *get_album_dir(scarletbook_handle_t *handle)
     char *disc_album_title_final;
 
     if (handle->master_toc->album_set_size > 1) // Set of discs
-    {    
-        memset(multiset_s, 0, sizeof(multiset_s));   
+    {
+        memset(multiset_s, 0, sizeof(multiset_s));
         snprintf(multiset_s, sizeof(multiset_s), " (disc %u-%u)", handle->master_toc->album_sequence_number, handle->master_toc->album_set_size);
         disc_album_title_final = (char *)calloc( strlen(disc_album_title) + strlen(multiset_s) + 1,sizeof(char));
         sprintf(disc_album_title_final, "%s%s", disc_album_title, multiset_s);
@@ -209,7 +209,7 @@ char *get_album_dir(scarletbook_handle_t *handle)
 
     snprintf(disc_album_year, sizeof(disc_album_year), "%04u", handle->master_toc->disc_date_year);
 
-    LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_album_dir(), strlen(disc_album_title)=[%d]; strlen(disc_artist)=[%d]",strlen(disc_album_title), strlen(disc_artist)));
+    LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_album_dir(), strlen(disc_album_title)=[%d]; strlen(disc_artist)=[%d]",strlen(disc_album_title), strlen(disc_artist)));
 
     if (strlen(disc_artist) > 0 && strlen(disc_album_title) > 0 && artist_flag !=0 )
         albumdir = parse_format("%A - %L", 0, disc_album_year, disc_artist, disc_album_title_final, NULL);
@@ -222,7 +222,7 @@ char *get_album_dir(scarletbook_handle_t *handle)
 
 
     free(disc_album_title_final);
-    
+
     return albumdir;
 }
 
@@ -242,7 +242,7 @@ char *get_path_disc_album(scarletbook_handle_t *handle)
     char disc_artist[MAX_DISC_ARTIST_LEN + 4];
 
     master_text_t *master_text = &handle->master_text;
-     
+
     //char *p_disc_title = NULL;
     char *p_album_title = NULL;
     char *p_artist = NULL;
@@ -293,38 +293,38 @@ char *get_path_disc_album(scarletbook_handle_t *handle)
     {
         strncpy(disc_album_title, "empty album title", MAX_ALBUM_TITLE_LEN);
     }
-    //LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), p_album_title=[%X]; disc_album_title=[%s]",p_album_title, disc_album_title));
+    //LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), p_album_title=[%X]; disc_album_title=[%s]",p_album_title, disc_album_title));
 
     memset(disc_artist, 0, sizeof(disc_artist));
     if (p_artist)
     {
         char *pos, *pos_end;
-        
+
         pos_end = p_artist + strlen(p_artist);
 
         pos = strchr(p_artist, ';');
         if (pos != NULL && pos < pos_end)
-            pos_end = pos;       
+            pos_end = pos;
         pos = strchr(p_artist, '/'); // standard artist separator
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
         pos = strchr(p_artist, ',');
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
-        // pos = strchr(p_artist, '.'); 
+        // pos = strchr(p_artist, '.');
         //if (pos != NULL && pos < pos_end)
         //    pos_end = pos;
         pos = strstr(p_artist, " -");
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
 
-        //LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), p_artist=[%X]; pos_end=[%X]",p_artist, pos_end));
+        //LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), p_artist=[%X]; pos_end=[%X]",p_artist, pos_end));
         strncpy(disc_artist, p_artist, min(pos_end - p_artist, MAX_DISC_ARTIST_LEN));
         sanitize_filename(disc_artist);
-        //LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), disc_artist=[%s]",disc_artist));
+        //LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), disc_artist=[%s]",disc_artist));
     }
 
-    //LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), disc_album_title=[%s]; disc_artist=[%s]",disc_album_title, disc_artist));
+    //LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), disc_album_title=[%s]; disc_artist=[%s]",disc_album_title, disc_artist));
 
     if (handle->master_toc->album_set_size > 1) // If there is a set of discs
     {
@@ -342,7 +342,7 @@ char *get_path_disc_album(scarletbook_handle_t *handle)
             strcat(disc_album_title_final, " - ");
             strcat(disc_album_title_final, disc_album_title);
         }
-        else 
+        else
         {
             disc_album_title_final = (char *)calloc(strlen(disc_album_title) + 1 + strlen(multiset_s) + 1, sizeof(char));
             strcat(disc_album_title_final, disc_album_title);
@@ -361,8 +361,8 @@ char *get_path_disc_album(scarletbook_handle_t *handle)
     {
 
         size_t total_size = strlen(disc_artist) + 3 + strlen(disc_album_title) + 1;
-        LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), total size=[%d]",total_size));
-        LOG(lm_main, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), strlen(disc_artist)=[%d]; strlen(disc_album_title)=[%d]",strlen(disc_artist),strlen(disc_album_title)));
+        LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), total size=[%d]",total_size));
+        LOG(lm_metadata, LOG_NOTICE, ("NOTICE in scarletbook_helpers..get_path_disc_album(), strlen(disc_artist)=[%d]; strlen(disc_album_title)=[%d]",strlen(disc_artist),strlen(disc_album_title)));
 
 
         if (artist_flag !=0 && strlen(disc_artist) > 0) // add artist name
@@ -376,9 +376,9 @@ char *get_path_disc_album(scarletbook_handle_t *handle)
             disc_album_title_final = (char *)calloc(strlen(disc_album_title) + 1, sizeof(char));
             strcat(disc_album_title_final, disc_album_title);
         }
-        
+
     }
-    
+
     return disc_album_title_final;
 }
 
@@ -402,21 +402,21 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
     {
         if (master_text->disc_artist)
         {
-            c = master_text->disc_artist;           
+            c = master_text->disc_artist;
         }
         else if (master_text->album_artist)
         {
-            c =  master_text->album_artist;           
+            c =  master_text->album_artist;
         }
         else
         {
             // nothing found to put in performer. Do not insert it all
             //strncpy(track_artist, "unknown performer", min(strlen("unknown performer"), MAX_TRACK_ARTIST_LEN));
             performer_flag_local = 0;
-        }       
-        
+        }
+
     }
-    
+
 
     if (c)
     {
@@ -433,17 +433,17 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
         pos = strchr(c, ',');
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
-        // pos = strchr(c, '.'); 
+        // pos = strchr(c, '.');
         //if (pos != NULL && pos < pos_end)
         //    pos_end = pos;
         pos = strstr(c, " -");
         if (pos != NULL && pos < pos_end)
             pos_end = pos;
-		
+
         strncpy(track_artist, c, min(pos_end - c, MAX_TRACK_ARTIST_LEN));
         sanitize_filename(track_artist);
     }
-    
+
 
     memset(track_title, 0, sizeof(track_title));
     c = handle->area[area].area_track_text[track].track_type_title;
@@ -452,7 +452,7 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
         strncpy(track_title, c, MAX_TRACK_TITLE_LEN);
         sanitize_filename(track_title);
     }
-    
+
     if (master_text->disc_title)
         p_album_title = master_text->disc_title;
     else if (master_text->disc_title_phonetic)
@@ -466,7 +466,7 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
     if (p_album_title)
     {
         char *pos_end = strchr(p_album_title, ';');
-        if (pos_end != NULL)   
+        if (pos_end != NULL)
             strncpy(disc_album_title, p_album_title, min(pos_end - p_album_title, MAX_ALBUM_TITLE_LEN));
         else
             strncpy(disc_album_title, p_album_title, MAX_ALBUM_TITLE_LEN);
@@ -478,7 +478,7 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
     {
          strncpy(disc_album_title, "empty album title",  MAX_ALBUM_TITLE_LEN);
     }
-    
+
     snprintf(disc_album_year, sizeof(disc_album_year), "%04u", handle->master_toc->disc_date_year);
 
     if (override_title && strlen(override_title) > 0)
@@ -488,9 +488,9 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
             else
                 return parse_format("%N - %L - %A -%T", track + 1, disc_album_year, track_artist, disc_album_title, override_title);
         }
-    else if (strlen(track_artist) > 0 && strlen(track_title) > 0 && performer_flag_local != 0) 
+    else if (strlen(track_artist) > 0 && strlen(track_title) > 0 && performer_flag_local != 0)
         return parse_format("%N - %A - %T", track + 1, disc_album_year, track_artist, disc_album_title, track_title);
-    else if (strlen(track_artist) > 0 && performer_flag_local != 0)  
+    else if (strlen(track_artist) > 0 && performer_flag_local != 0)
         return parse_format("%N - %A", track + 1, disc_album_year, track_artist, disc_album_title, track_title);
     else if (strlen(track_title) > 0)
         return parse_format("%N - %T", track + 1, disc_album_year, track_artist, disc_album_title, track_title);
@@ -500,7 +500,7 @@ char *get_music_filename(scarletbook_handle_t *handle, int area, int track, cons
 }
 
 
-char *get_speaker_config_string(area_toc_t *area) 
+char *get_speaker_config_string(area_toc_t *area)
 {
     if (area->channel_count == 2 && area->extra_settings == 0)
     {
@@ -520,7 +520,7 @@ char *get_speaker_config_string(area_toc_t *area)
     }
 }
 
-char *get_frame_format_string(area_toc_t *area) 
+char *get_frame_format_string(area_toc_t *area)
 {
     if (area->frame_format == FRAME_FORMAT_DSD_3_IN_14)
     {

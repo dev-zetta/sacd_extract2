@@ -71,7 +71,7 @@ int path_dir_exists(char * path)
 
     wchar_t *w_pathname;
     struct _stat fileinfo_win;
-    
+
     CHAR2WCHAR(w_pathname, path);
     ret = _wstat(w_pathname, &fileinfo_win);
     free(w_pathname);
@@ -89,24 +89,24 @@ int path_dir_exists(char * path)
 
 /*
 
-Mac OS X operating systems, Oracle Solaris operating systems, AIX operating systems: 
-The maximum number of characters for a file name is 255. 
-The maximum combined length of the file name and path name is 1024 characters. 
+Mac OS X operating systems, Oracle Solaris operating systems, AIX operating systems:
+The maximum number of characters for a file name is 255.
+The maximum combined length of the file name and path name is 1024 characters.
 The Unicode representation of a character can occupy several bytes, so the maximum number of characters that a file name might contain can vary.
 
-Linux: The maximum length for a file name is 255 bytes. The maximum combined length of both the file name and path name is 4096 bytes. 
-This length matches the PATH_MAX that is supported by the operating system. 
-The Unicode representation of a character can occupy several bytes, so the maximum number of characters that comprises a path and file name can vary. 
+Linux: The maximum length for a file name is 255 bytes. The maximum combined length of both the file name and path name is 4096 bytes.
+This length matches the PATH_MAX that is supported by the operating system.
+The Unicode representation of a character can occupy several bytes, so the maximum number of characters that comprises a path and file name can vary.
 The actual limitation is the number of bytes in the path and file components, which might correspond to an equal number of characters.
 
 Linux: For archive or retrieve operations, the maximum length that you can specify for a path and file name (combined) remains at 1024 bytes.
 
 Windows operating systems:
-The maximum number of bytes for a file name and file path when combined is 6255. 
-However, the file name itself cannot exceed 255 bytes. 
+The maximum number of bytes for a file name and file path when combined is 6255.
+However, the file name itself cannot exceed 255 bytes.
 Furthermore, directory names (including the directory delimiter) within a path are limited to 255 bytes
 
-See 
+See
 https://www.ibm.com/docs/en/spectrum-protect/8.1.11?topic=parameters-file-specification-syntax
 https://www.quora.com/What-is-the-longest-file-path-allowed-for-Linux
 
@@ -116,7 +116,7 @@ https://www.quora.com/What-is-the-longest-file-path-allowed-for-Linux
 //#define MAX_FILENAME_LEN 255
 
 
-// construct a filename path from various parts/components 
+// construct a filename path from various parts/components
 //
 // path - the path the file is placed in (don't include a trailing '/')
 // dir - the parent directory of the file (don't include a trailing '/')
@@ -148,10 +148,10 @@ char *make_filename(const char *path, const char *dir, const char *filename, con
             pos++;
         }
 #endif
-        
+
     }
     if (dir != NULL)
-    {       
+    {
         strncpy(string_buf+pos,dir,MAX_BUFF_FULL_PATH_LEN - pos - 5);
         pos += min((int)strlen(dir), MAX_BUFF_FULL_PATH_LEN - pos - 5);
 #if defined(WIN32) || defined(_WIN32)
@@ -167,7 +167,7 @@ char *make_filename(const char *path, const char *dir, const char *filename, con
             pos++;
         }
 #endif
-        
+
     }
 
     sanitize_filepath(string_buf);
@@ -179,7 +179,7 @@ char *make_filename(const char *path, const char *dir, const char *filename, con
         strncpy(filename_duplicate, filename, MAX_FILENAME_LEN - 1);
         sanitize_filename(filename_duplicate);
 
-        strncpy(string_buf + pos, filename_duplicate,MAX_BUFF_FULL_PATH_LEN - pos - 5); 
+        strncpy(string_buf + pos, filename_duplicate,MAX_BUFF_FULL_PATH_LEN - pos - 5);
         pos += min((int)strlen(filename_duplicate), MAX_BUFF_FULL_PATH_LEN - pos - 5);
     }
 
@@ -194,7 +194,7 @@ char *make_filename(const char *path, const char *dir, const char *filename, con
     ret = strdup(string_buf);
     if (ret == NULL)
     {
-        // LOG(lm_main, LOG_ERROR, ("calloc(sizeof(char) * len) failed. Out of memory."));
+        // LOG(lm_output, LOG_ERROR, ("calloc(sizeof(char) * len) failed. Out of memory."));
         printf("Error! make_filename: Cannot alocate memory Out of memory.\n");
         return NULL;
     }
@@ -259,12 +259,12 @@ char * parse_format(const char * format, int tracknum, const char * year, const 
     }
 
     if(len >= MAX_BUFF_FULL_PATH_LEN) len = MAX_BUFF_FULL_PATH_LEN - 1;
-    LOG(lm_main, LOG_NOTICE, ("NOTICE in fileutils: parse_format(); len=[%d]",len));
+    LOG(lm_output, LOG_NOTICE, ("NOTICE in fileutils: parse_format(); len=[%d]",len));
 
     //ret = calloc(MAX_BUFF_FULL_PATH_LEN,1); // calloc(len+1, sizeof(char));
     ret = calloc(MAX_BUFF_FULL_PATH_LEN,1);
     if (ret == NULL)
-        LOG(lm_main, LOG_ERROR, ("malloc(len+1) failed. Out of memory."));
+        LOG(lm_output, LOG_ERROR, ("malloc(len+1) failed. Out of memory."));
 
     for (i = 0; i <  len_format; i++)
     {
@@ -349,7 +349,7 @@ int recursive_mkdir(char* path_and_name,char * base_dir, mode_t mode)
 
     path_and_name_length = strlen(pos);
 
-    LOG(lm_main, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir before call mkdir..path_and_name: %s; base_dir:%s; path_and_name_length:%d", path_and_name, base_dir, path_and_name_length));
+    LOG(lm_output, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir before call mkdir..path_and_name: %s; base_dir:%s; path_and_name_length:%d", path_and_name, base_dir, path_and_name_length));
 
     for (count = 0; count < path_and_name_length; count++)
     {
@@ -376,7 +376,7 @@ int recursive_mkdir(char* path_and_name,char * base_dir, mode_t mode)
             rc = mkdir(path_and_name, mode);
 #endif
 
-            LOG(lm_main, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir after call mkdir..path_and_name: %s; return=%d", path_and_name, rc));
+            LOG(lm_output, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir after call mkdir..path_and_name: %s; return=%d", path_and_name, rc));
 
 #if !defined(_WIN32)
             chmod(path_and_name, mode);
@@ -405,7 +405,7 @@ int recursive_mkdir(char* path_and_name,char * base_dir, mode_t mode)
 #else
     rc = mkdir(path_and_name, mode); // mode =0777  0774 // S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH
 #endif
-    LOG(lm_main, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir after call mkdir..path_and_name: %s; return=%d  ", path_and_name, rc));
+    LOG(lm_output, LOG_NOTICE, ("NOTICE in fileutils:recursive_mkdir after call mkdir..path_and_name: %s; return=%d  ", path_and_name, rc));
 #if !defined(_WIN32)
     chmod(path_and_name, mode);
 #endif
@@ -430,7 +430,7 @@ char *get_unique_path(char *dir, char *file, const char *ext)
             snprintf(file_new, strlen(file)+8, "%s (%d)", file, i);
         }
         path = make_filename(dir, NULL, file_new, ext);
-        if (stat_wrap(path, &stat_file) != 0)       
+        if (stat_wrap(path, &stat_file) != 0)
         {
                 free(path);
                 path = make_filename(dir, NULL, file_new, ext);
@@ -468,10 +468,10 @@ char * get_unique_filename(char *dev,char *dir, char *file, char *ext)
         int len_file_copy = strlen(file) + 10;
         char *file_copy = (char *) calloc(len_file_copy, sizeof(char));
         snprintf(file_copy, len_file_copy, "%s (%d)", file, count++);
-        
+
         total_path = make_filename(dev, dir, file_copy, ext);
         free(file_copy);
-        
+
         file_exists = (stat_wrap(total_path, &stat_file) == 0)? 1:0;
 
         if (count > 20) break; // loop must be stoped somewhere
@@ -494,17 +494,17 @@ static void trim_dots(char *s)
 
 /*
 For  FAT32 invalid char are:
-     0x00-0x1F 0x7F " * / : < > ? \ | + , . ; = [ ] (in some environments also: ! @; 
+     0x00-0x1F 0x7F " * / : < > ? \ | + , . ; = [ ] (in some environments also: ! @;
 
      0x00-0x1F 0x7F(DEL)
      "(0x22)  *(0x2a)  +(0x2b)  ,(0x2c)  .(0x2e)  /(0x2f)  :(0x3a)  ;(0x3b)  <(0x3c) =(0x3d) >(0x3e)  ?(0x3f)  [(0x5b)   ](0x5d)   \(0x5c)  |(0x7c)
-      (in some environments also: !=(0x21),  @ (0x40); 
+      (in some environments also: !=(0x21),  @ (0x40);
 
      NTFS invalid char are:
-     0x00-0x1F 0x7F " * / : < > ? \ | 
-     Mac HSF:   : 
+     0x00-0x1F 0x7F " * / : < > ? \ |
+     Mac HSF:   :
      Most most UNIX file systems :  / null
-  
+
     BUG BUG !!  IF input text is UTF-8 encoded then
      function will not work if unsafe_chars hex codes are greater than 0x7F, e.g. 0xab ('<<') !!
 
@@ -526,21 +526,21 @@ void sanitize_filename(char *f)
         if (strchr(unsafe_chars, *c))
             *c = '_';
     }
-    
+
     trim_dots(f);
     trim_whitespace(f);
-    
+
 }
 
 /*
 For  FAT32 invalid char are:
      0x00-0x1F 0x7F(DEL)
      "(0x22)  *(0x2a)  +(0x2b)  ,(0x2c)  .(0x2e)  /(0x2f)  :(0x3a)   <(0x3c)  >(0x3e)   ?(0x3f)  ;(0x3b)  =(0x3d)  [(0x5b)   ](0x5d)   \(0x5c)  |(0x7c)
-     (in some environments also: !=(0x21),  @ (0x40); 
+     (in some environments also: !=(0x21),  @ (0x40);
 
    NTFS invalid char are:
-     0x00-0x1F 0x7F " * / : < > ? \ | 
-   Mac HSF:   : 
+     0x00-0x1F 0x7F " * / : < > ? \ |
+   Mac HSF:   :
    Most most UNIX file systems :  / null
 */
 
@@ -559,7 +559,7 @@ void sanitize_filepath(char *f)
     {
         if (strchr(unsafe_chars, *c))
             *c = '_';
-    }  
+    }
 
     trim_dots(f);
     trim_whitespace(f);

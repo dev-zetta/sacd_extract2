@@ -17,6 +17,8 @@ readable SACD ISO image. A compatible network source can also be supplied as
 - DST-to-DSD conversion
 - Per-track selection and consecutive-track concatenation
 - CUE and XML metadata export
+- Bounded recovery from damaged sectors and malformed DSD/DST frames
+- Timestamped per-session extraction logs with severity and subsystem fields
 - Configurable ID3v2.3 and ID3v2.4 tagging
 - Optional output directories, performer naming, pause handling, and DSF
   padding control
@@ -91,6 +93,10 @@ ISO or DSDIFF Edit Master output.
 | `-C` | Export CUE and XML metadata |
 | `-P` | Print disc information without extracting |
 | `-i INPUT` | Read an ISO, device, or compatible `host:port` source |
+| `--max-read-errors N` | Allow at most `N` permanent media defects per output track; default `10`, `0` is fail-fast |
+| `--log` / `--no-log` | Explicitly enable or disable session logging |
+| `--log-file FILE` | Write the session log to an explicit path |
+| `--log-level LEVEL` | Select `error`, `warning`, `notice`, `info`, or `debug` |
 
 Run `sacd_extract --help` for the complete option list.
 
@@ -107,12 +113,74 @@ pauses=0
 nopad=0
 concatenate=0
 id3tag=4
-logging=0
+# logging=0
+max_read_errors=10
+log_level=info
+# log_file=/path/to/session.log
 ```
 
 `id3tag` accepts `0` (disabled), `1` or `2` (ID3v2.3 UTF-16, full or minimal),
 `3` (ID3v2.3 ISO-8859-1), and `4` or `5` (ID3v2.4 UTF-8, full or minimal).
 Boolean settings accept `0`/`1` or `no`/`yes`.
+Omit `logging` to use automatic logging for extraction and export commands;
+set it explicitly to override that default.
+Command-line logging and error-limit options take precedence over their config
+counterparts.
+
+## Damage recovery and logs
+
+Extraction and metadata-export commands automatically create one session log
+named `sacd_extract-YYYYMMDD-HHMMSS.log` in the album output directory. Logs
+contain local ISO-8601 timestamps, severity, subsystem, selected format/area,
+retry details, per-track results, and a final summary. Metadata-only (`-P`),
+help, and version commands log only when `--log` or `--log-file` is supplied.
+
+If a batch read is short or fails, the extractor narrows the failure to
+individual 2048-byte sectors and retries each sector twice. Unreadable audio
+sectors reset the incomplete DSD/DST frame and extraction resumes at the next
+valid sector. Raw ISO output writes a zero-filled sector instead, preserving
+all subsequent LSN offsets. Malformed sectors, independently incomplete or
+nonconsecutive frames, and DST decode failures share the per-track error
+budget.
+
+Outputs are first written as `*.inprogress.ext` and atomically published when
+the container has been finalized:
+
+- `Track.dsf` — clean output;
+- `Track.partial.dsf` — finalized output containing skipped media;
+- `Track.failed.dsf` — an output that could not be written or finalized.
+
+The master TOC remains mandatory. Stereo and multichannel areas independently
+fall back to their backup TOC and are omitted if neither copy is usable.
+
+Exit statuses are `0` for clean output, `1` for completed partial/abandoned
+tracks, `2` for invalid input or another fatal failure, and `130` when the user
+interrupts extraction.
+
+## Tests
+
+Unity 2.6.1 is vendored under `tests/vendor/unity`, so unit tests do not fetch
+dependencies. Build and run them with:
+
+```bash
+cmake -S tools/sacd_extract -B build/tests \
+  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build/tests --parallel
+ctest --test-dir build/tests --output-on-failure
+```
+
+To add read-only integration checks using a local SACD image, configure with:
+
+```bash
+cmake -S tools/sacd_extract -B build/integration \
+  -DBUILD_TESTING=ON -DSACD_TEST_ISO="/path/to/Album.iso"
+cmake --build build/integration --parallel
+ctest --test-dir build/integration -L integration --output-on-failure
+```
+
+The image is referenced in place and is never copied into the build or test
+artifacts. The integration set parses metadata, generates CUE/XML metadata, and
+extracts the first stereo DSF track.
 
 ## Output integrity
 
@@ -123,11 +191,16 @@ corruption issue is documented in
 
 ## Continuous integration
 
-The GitHub Actions workflow builds the Release configuration on Ubuntu, runs
-the version and help smoke checks, and publishes the executable in a compressed
-Linux artifact.
+The GitHub Actions workflow builds and tests the Release configuration before
+publishing the executable, and runs the unit suite again under ASan and UBSan.
 
 ## License
 
 This project is distributed under the GNU General Public License version 2.
 See [`COPYING`](COPYING).
+
+## Authors
+
+SACD Ripper was created and maintained by its respective upstream authors.
+Gabriel Max `<dev@zetta.app>` is a co-author of the host-native PC/Linux
+extractor work (2026).
