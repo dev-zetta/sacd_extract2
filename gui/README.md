@@ -10,15 +10,10 @@ with tagged releases.
 
 ## Development
 
-Install Node.js 22 or newer, build the extractor from the repository root, and
-install the locked JavaScript dependencies:
+Install Node.js 22 or newer and use the repository's shared build entry point:
 
 ```bash
-cmake -S src -B build/release -DCMAKE_BUILD_TYPE=Release
-cmake --build build/release --parallel
-npm ci --prefix gui
-npm --prefix gui test
-npm --prefix gui run check
+scripts/build.sh
 npm --prefix gui start
 ```
 
@@ -28,7 +23,8 @@ order:
 1. the path in `SACD_EXTRACT_PATH`;
 2. the packaged application's `resources` directory;
 3. the `gui` directory;
-4. `build/release` and `build/sacd_extract` in this repository;
+4. the platform-default `build/linux` or `build/windows` directory, followed by
+   the legacy `build/release` and `build/sacd_extract` directories;
 5. directories listed in `PATH`.
 
 Use `SACD_EXTRACT_PATH` when the executable is in a different build directory:
@@ -39,12 +35,10 @@ SACD_EXTRACT_PATH=/absolute/path/to/sacd_extract npm --prefix gui start
 
 ## Packaging
 
-Packaging requires the matching host-platform extractor. Point Electron Forge
-to it with `SACD_EXTRACT_BINARY`:
+The shared script packages the matching host-platform extractor and GUI:
 
 ```bash
-SACD_EXTRACT_BINARY="$PWD/build/release/sacd_extract" \
-  npm --prefix gui run package -- --arch=x64
+scripts/build.sh --package
 ```
 
 Electron Forge copies the binary outside the ASAR archive into the packaged
