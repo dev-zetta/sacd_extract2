@@ -5,6 +5,26 @@ button { cursor: pointer; }
 svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 svg[hidden] { display: none !important; }
 
+/* Decorative copy should behave like native application chrome, not web text.
+   Keep controls and the extraction log selectable/interactive. */
+.app-title,
+.app-subtitle,
+.power-led,
+.section-heading,
+.field-block > label,
+.segment strong,
+.segment small,
+.switch-option strong,
+.switch-option small,
+.extract-section > div,
+.progress-topline,
+.status-label,
+.status-value {
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
 .sacd-shell { max-width: 960px; padding-top: 28px; }
 .app-card { min-height: calc(100vh - 56px); }
 .app-header { padding: 22px 26px; }
