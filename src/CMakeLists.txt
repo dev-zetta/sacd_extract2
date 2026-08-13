@@ -64,10 +64,10 @@ include(CheckTypeSize)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${sacd_extract_SOURCE_DIR})
 
-include_directories("../../libs/libcommon")
-include_directories("../../libs/libdstdec")
-include_directories("../../libs/libid3")
-include_directories("../../libs/libsacd")
+include_directories("../libs/libcommon")
+include_directories("../libs/libdstdec")
+include_directories("../libs/libid3")
+include_directories("../libs/libsacd")
 
 
 find_package(Threads REQUIRED)
@@ -106,25 +106,25 @@ else()
 endif ()
 
 
-file(GLOB libcommon_headers ../../libs/libcommon/*.h)
-file(GLOB libcommon_sources ../../libs/libcommon/*.c)
+file(GLOB libcommon_headers ../libs/libcommon/*.h)
+file(GLOB libcommon_sources ../libs/libcommon/*.c)
 # avoid ISO C empty translation unit errors
-list(REMOVE_ITEM libcommon_headers "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libcommon/usocket.h")
-list(REMOVE_ITEM libcommon_sources "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libcommon/usocket.c")
-list(REMOVE_ITEM libcommon_headers "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libcommon/wsocket.h")
-list(REMOVE_ITEM libcommon_sources "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libcommon/wsocket.c")
+list(REMOVE_ITEM libcommon_headers "${CMAKE_CURRENT_SOURCE_DIR}/../libs/libcommon/usocket.h")
+list(REMOVE_ITEM libcommon_sources "${CMAKE_CURRENT_SOURCE_DIR}/../libs/libcommon/usocket.c")
+list(REMOVE_ITEM libcommon_headers "${CMAKE_CURRENT_SOURCE_DIR}/../libs/libcommon/wsocket.h")
+list(REMOVE_ITEM libcommon_sources "${CMAKE_CURRENT_SOURCE_DIR}/../libs/libcommon/wsocket.c")
 source_group(libcommon FILES ${libcommon_headers} ${libcommon_sources})
 
-file(GLOB libdstdec_headers ../../libs/libdstdec/*.h)
-file(GLOB libdstdec_sources ../../libs/libdstdec/*.c)
+file(GLOB libdstdec_headers ../libs/libdstdec/*.h)
+file(GLOB libdstdec_sources ../libs/libdstdec/*.c)
 source_group(libdstdec FILES ${libdstdec_headers} ${libdstdec_sources})
 
-file(GLOB libid3_headers ../../libs/libid3/*.h)
-file(GLOB libid3_sources ../../libs/libid3/*.c)
+file(GLOB libid3_headers ../libs/libid3/*.h)
+file(GLOB libid3_sources ../libs/libid3/*.c)
 source_group(libid3 FILES ${libid3_headers} ${libid3_sources})
 
-file(GLOB libsacd_headers ../../libs/libsacd/*.h)
-file(GLOB libsacd_sources ../../libs/libsacd/*.c)
+file(GLOB libsacd_headers ../libs/libsacd/*.h)
+file(GLOB libsacd_sources ../libs/libsacd/*.c)
 source_group(libsacd FILES ${libsacd_headers} ${libsacd_sources})
 
 file(GLOB main_headers ./*.h)
@@ -140,10 +140,10 @@ add_library(sacd_extract_core STATIC
 target_include_directories(sacd_extract_core PUBLIC
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ../../libs/libcommon
-    ../../libs/libdstdec
-    ../../libs/libid3
-    ../../libs/libsacd)
+    ../libs/libcommon
+    ../libs/libdstdec
+    ../libs/libid3
+    ../libs/libsacd)
 
 add_executable(sacd_extract ${main_headers} ${main_sources})
 target_link_libraries(sacd_extract PRIVATE sacd_extract_core)
@@ -192,5 +192,5 @@ else()
 endif()
 
 if(BUILD_TESTING)
-    add_subdirectory(../../tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
+    add_subdirectory(../tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 endif()

@@ -41,7 +41,7 @@ Configure and build out of tree:
 ```bash
 git clone https://github.com/dev-zetta/sacd_extract2.git
 cd sacd_extract2
-cmake -S tools/sacd_extract -B build/sacd_extract \
+cmake -S src -B build/sacd_extract \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build build/sacd_extract --parallel
 ```
@@ -76,7 +76,7 @@ After restarting the MINGW64 shell if the MSYS2 update requests it, configure,
 build, and test from the repository root:
 
 ```bash
-cmake -S tools/sacd_extract -B build/windows -G Ninja \
+cmake -S src -B build/windows -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DSACD_WINDOWS_STATIC=ON
 cmake --build build/windows --parallel
 ctest --test-dir build/windows --output-on-failure
@@ -211,7 +211,7 @@ Unity 2.6.1 is vendored under `tests/vendor/unity`, so unit tests do not fetch
 dependencies. Build and run them with:
 
 ```bash
-cmake -S tools/sacd_extract -B build/tests \
+cmake -S src -B build/tests \
   -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
 cmake --build build/tests --parallel
 ctest --test-dir build/tests --output-on-failure
@@ -220,7 +220,7 @@ ctest --test-dir build/tests --output-on-failure
 To add read-only integration checks using a local SACD image, configure with:
 
 ```bash
-cmake -S tools/sacd_extract -B build/integration \
+cmake -S src -B build/integration \
   -DBUILD_TESTING=ON -DSACD_TEST_ISO="/path/to/Album.iso"
 cmake --build build/integration --parallel
 ctest --test-dir build/integration -L integration --output-on-failure

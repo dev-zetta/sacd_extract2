@@ -5,6 +5,13 @@ six versioned fork commits preceding this changelog are accounted for below.
 Earlier project history remains available in the
 [legacy changelog](archive/changelog).
 
+## [Unreleased]
+
+### Changed
+
+- Move the extractor entry point, bundled getopt implementation, and CMake
+  project from `tools/sacd_extract/` to the root-level `src/` directory.
+
 ## [0.4.4] - 2026-08-13
 
 ### Added
@@ -103,3 +110,4 @@ Commits:
 [0.4.1]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dev-zetta/sacd_extract2/compare/c9af7d4...v0.4.0
 [0.4.4]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.3...v0.4.4
+[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.4...HEAD

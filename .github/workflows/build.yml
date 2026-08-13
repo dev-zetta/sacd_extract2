@@ -28,7 +28,7 @@ jobs:
 
       - name: Configure
         run: >-
-          cmake -S tools/sacd_extract -B build/release
+          cmake -S src -B build/release
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
@@ -87,7 +87,7 @@ jobs:
 
       - name: Configure
         run: >-
-          cmake -S tools/sacd_extract -B build/release -G Ninja
+          cmake -S src -B build/release -G Ninja
           -DCMAKE_BUILD_TYPE=Release
           -DSACD_WINDOWS_STATIC=ON
 
@@ -142,7 +142,7 @@ jobs:
 
       - name: Configure ASan and UBSan
         run: >-
-          cmake -S tools/sacd_extract -B build/sanitizers
+          cmake -S src -B build/sanitizers
           -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
           -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
