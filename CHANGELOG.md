@@ -7,6 +7,11 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade `actions/setup-node` to v7 so GitHub Actions uses its native Node.js
+  24 runtime instead of compatibility-forcing the deprecated Node.js 20 action.
+
 ## [0.6.0] - 2026-08-13
 
 ### Changed
