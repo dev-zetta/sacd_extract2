@@ -2,11 +2,11 @@
 
 A Tauri 2 desktop interface for the `sacd_extract2` command-line extractor.
 It supports DSF, DSDIFF, and 24-bit PCM FLAC output, stereo and multichannel
-areas, DST decoding, and CUE export on Linux and Windows.
+areas, DST decoding, and CUE export on Linux, Apple Silicon macOS, and Windows.
 
 The GUI is built and tested together with the matching extractor by this
-repository's GitHub Actions workflow. Tagged releases publish a Linux AppImage
-and a Windows installer.
+repository's GitHub Actions workflow. Tagged releases publish a Linux AppImage,
+Apple Silicon macOS DMG, and Windows installer.
 
 Run the Linux package without installation:
 
@@ -45,8 +45,10 @@ scripts/build.sh --package
 
 Tauri embeds the prepared extractor as an external sidecar. The build script
 verifies that this input is byte-identical to the extractor that passed CTest,
-then produces `sacd-extract-gui-linux-x86_64.AppImage` on Linux or
-`sacd-extract-gui-windows-x86_64-setup.exe` on Windows.
+then produces `sacd-extract-gui-linux-x86_64.AppImage` on Linux,
+`sacd-extract-gui-macos-arm64.dmg` on Apple Silicon macOS, or
+`sacd-extract-gui-windows-x86_64-setup.exe` on Windows. The community macOS
+package uses an ad-hoc signature and is not Apple-notarized.
 
 ## Tests
 

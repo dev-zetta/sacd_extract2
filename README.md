@@ -3,13 +3,14 @@
 Project repository: [github.com/dev-zetta/sacd_extract2](https://github.com/dev-zetta/sacd_extract2)
 
 `sacd_extract` is a command-line tool for inspecting readable SACD images and
-extracting their audio and metadata on Linux and Windows. It can write stereo or
-multichannel tracks as DSF, DSDIFF, or playback-ready PCM FLAC, decode DST
-during extraction, export an Edit Master file, and generate CUE/XML metadata.
+extracting their audio and metadata on Linux, macOS, and Windows. It can write
+stereo or multichannel tracks as DSF, DSDIFF, or playback-ready PCM FLAC,
+decode DST during extraction, export an Edit Master file, and generate CUE/XML
+metadata.
 
 An adopted Tauri 2 desktop interface is included under [`gui/`](gui/README.md).
-Tagged releases provide a Linux AppImage and Windows installer containing the
-matching extractor executable.
+Tagged releases provide Linux AppImage, Apple Silicon macOS DMG, and Windows
+installer packages containing the matching extractor executable.
 
 This repository contains the host-native extractor. It does not authenticate
 or decrypt physical SACD media, so local input must already be available as a
@@ -40,19 +41,19 @@ decoding, selectable FLAC sample rates, and CUE export.
 ![sacd_extract2 desktop GUI](docs/images/gui-preview.webp)
 
 Release GUI packages contain the exact host-platform extractor tested in the
-same Actions job. The Linux build is distributed as a single AppImage; Windows
-uses a compact installer and the WebView2 runtime included with current Windows
-installations.
+same Actions job. Linux is distributed as a single AppImage, Apple Silicon
+macOS as an ad-hoc-signed DMG, and Windows as a compact installer using the
+WebView2 runtime included with current Windows installations.
 
 Set `SACD_EXTRACT_PATH=/absolute/path/to/sacd_extract` if the executable is not
-under `build/linux`, `build/windows`, the legacy build directories, the GUI
-directory, or `PATH`. See
+under `build/linux`, `build/macos`, `build/windows`, the legacy build
+directories, the GUI directory, or `PATH`. See
 the [GUI documentation](gui/README.md) for packaging details and retained
 upstream provenance.
 
 ## Build and test
 
-Linux and Windows use the same dependency-checking build entry point:
+Linux, macOS, and Windows use the same dependency-checking build entry point:
 
 ```bash
 scripts/build.sh

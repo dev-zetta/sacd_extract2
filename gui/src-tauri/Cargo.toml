@@ -1,6 +1,6 @@
 [package]
 name = "sacd-extract-gui"
-version = "0.8.0"
+version = "0.9.0"
 description = "Tauri desktop interface for sacd_extract2"
 authors = ["git-moiseev <mail.moiseev@gmail.com>", "Gabriel Max <dev@zetta.app>"]
 edition = "2021"

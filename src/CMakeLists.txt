@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(sacd_extract VERSION 0.8.0 LANGUAGES C CXX)
+project(sacd_extract VERSION 0.9.0 LANGUAGES C CXX)
 
 include(CTest)
 
@@ -10,12 +10,12 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
-# Force to compile for Mac OS X 10.13. target (if you want the app run on all OS X versions).
-# Without this adding, if build is made on a MacOS 10.15 or newer, then the app will not run on systems older than 10.15.
-# You can delete this if you don't care about the Mac OS X 10.15 incompatibilty problem. 
-if (APPLE)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment version" FORCE)
-set(ENV{MACOSX_DEPLOYMENT_TARGET} 10.13)
+# Apple Silicon first shipped with macOS 11. Keep the CLI and Tauri sidecar on
+# that deployment baseline even when built by a newer hosted runner.
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING
+        "Minimum macOS version" FORCE)
+    set(ENV{MACOSX_DEPLOYMENT_TARGET} "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 endif()
 
 option(SACD_WINDOWS_STATIC
@@ -230,7 +230,10 @@ if(WIN32)
     endif()
 elseif(APPLE)
     add_definitions(-D_FILE_OFFSET_BITS=64)
-    target_link_libraries(sacd_extract_core PUBLIC -liconv FLAC::FLAC)
+    target_link_libraries(sacd_extract_core PUBLIC
+        Threads::Threads
+        -liconv
+        FLAC::FLAC)
 else()
     add_definitions(-D_FILE_OFFSET_BITS=64)
     target_link_libraries(sacd_extract_core PUBLIC Threads::Threads FLAC::FLAC)

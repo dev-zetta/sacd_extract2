@@ -129,6 +129,51 @@ jobs:
             build/dist/sacd-extract-gui-windows-x86_64-setup.exe.sha256
           if-no-files-found: error
 
+  macos:
+    if: github.ref_type != 'tag'
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust for Tauri
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gui/src-tauri
+
+      - name: Set up Node.js for GUI
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+
+      - name: Build, test, and package Apple Silicon
+        run: scripts/build.sh --platform macos --build-dir build/release --package
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: sacd_extract-macos-arm64
+          path: |
+            build/dist/sacd_extract-macos-arm64.tar.gz
+            build/dist/sacd_extract-macos-arm64.tar.gz.sha256
+          if-no-files-found: error
+
+      - name: Upload GUI
+        uses: actions/upload-artifact@v7
+        with:
+          name: sacd-extract-gui-macos-arm64
+          path: |
+            build/dist/sacd-extract-gui-macos-arm64.dmg
+            build/dist/sacd-extract-gui-macos-arm64.dmg.sha256
+          if-no-files-found: error
+
   sanitizers:
     if: github.ref_type != 'tag'
     runs-on: ubuntu-22.04
@@ -176,8 +221,10 @@ jobs:
           mkdir -p build
           for artifact in \
             sacd_extract-linux-x86_64 \
+            sacd_extract-macos-arm64 \
             sacd_extract-windows-x86_64 \
             sacd-extract-gui-linux-x86_64 \
+            sacd-extract-gui-macos-arm64 \
             sacd-extract-gui-windows-x86_64
           do
             gh run download "$run_id" \
@@ -194,20 +241,28 @@ jobs:
             gh release upload "${GITHUB_REF_NAME}" \
               build/sacd_extract-linux-x86_64.tar.gz \
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
+              build/sacd_extract-macos-arm64.tar.gz \
+              build/sacd_extract-macos-arm64.tar.gz.sha256 \
               build/sacd_extract-windows-x86_64.zip \
               build/sacd_extract-windows-x86_64.zip.sha256 \
               build/sacd-extract-gui-linux-x86_64.AppImage \
               build/sacd-extract-gui-linux-x86_64.AppImage.sha256 \
+              build/sacd-extract-gui-macos-arm64.dmg \
+              build/sacd-extract-gui-macos-arm64.dmg.sha256 \
               build/sacd-extract-gui-windows-x86_64-setup.exe \
               build/sacd-extract-gui-windows-x86_64-setup.exe.sha256 --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               build/sacd_extract-linux-x86_64.tar.gz \
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
+              build/sacd_extract-macos-arm64.tar.gz \
+              build/sacd_extract-macos-arm64.tar.gz.sha256 \
               build/sacd_extract-windows-x86_64.zip \
               build/sacd_extract-windows-x86_64.zip.sha256 \
               build/sacd-extract-gui-linux-x86_64.AppImage \
               build/sacd-extract-gui-linux-x86_64.AppImage.sha256 \
+              build/sacd-extract-gui-macos-arm64.dmg \
+              build/sacd-extract-gui-macos-arm64.dmg.sha256 \
               build/sacd-extract-gui-windows-x86_64-setup.exe \
               build/sacd-extract-gui-windows-x86_64-setup.exe.sha256 \
               --verify-tag --generate-notes --title "sacd_extract ${GITHUB_REF_NAME#v}"

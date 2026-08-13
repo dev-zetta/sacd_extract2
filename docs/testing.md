@@ -66,9 +66,11 @@ ignored `work/` directory.
 
 ## Continuous integration
 
-GitHub Actions calls `scripts/build.sh` for Ubuntu Release, Windows Release, and
-Linux ASan/UBSan jobs. It uploads tested CLI archives, a Linux AppImage, and a
-Windows installer with checksums.
+GitHub Actions calls `scripts/build.sh` for Ubuntu x86-64, Apple Silicon macOS,
+Windows x86-64 Release jobs, and a Linux ASan/UBSan job. It uploads tested CLI
+archives, Linux AppImage, macOS DMG, and Windows installer with checksums. The
+macOS job also checks the Mach-O architecture, code signature, dynamic-library
+paths, and DMG integrity.
 When a version tag is pushed, the tag workflow reuses artifacts from the
 successful branch build for the same commit instead of compiling everything a
 second time.

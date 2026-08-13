@@ -7,6 +7,23 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-14
+
+### Added
+
+- Add a native Apple Silicon macOS build target for the CLI and Tauri GUI,
+  distributed as an `arm64` archive and ad-hoc-signed DMG.
+- Validate the macOS Mach-O architecture, code signature, system-only dynamic
+  library paths, DMG integrity, CTest suite, and GUI tests in GitHub Actions.
+
+### Changed
+
+- Make non-functional GUI headings, hints, labels, and status copy
+  non-selectable and transparent to mouse events while leaving controls and
+  extraction logs interactive.
+- Extend the shared dependency-checking build script and release workflow to
+  publish checksummed macOS artifacts alongside Linux and Windows packages.
+
 ## [0.8.0] - 2026-08-14
 
 ### Added
@@ -180,4 +197,5 @@ Commits:
 [0.6.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.5.0...v0.6.0
 [0.7.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.7.0...v0.8.0
-[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.8.0...HEAD
+[0.9.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.8.0...v0.9.0
+[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.9.0...HEAD

@@ -1,6 +1,6 @@
 # Building sacd_extract2
 
-The repository uses one host-aware entry point for Linux and Windows:
+The repository uses one host-aware entry point for Linux, macOS, and Windows:
 
 ```bash
 scripts/build.sh
@@ -64,12 +64,31 @@ The script selects Ninja and enables `SACD_WINDOWS_STATIC` automatically. The
 resulting `build/windows/sacd_extract.exe` statically includes its non-system
 MinGW, pthread, iconv, and libFLAC dependencies.
 
+## macOS (Apple Silicon)
+
+The supported macOS target is native Apple Silicon (`arm64`) with macOS 11 as
+its deployment baseline. Install the Xcode Command Line Tools, CMake, Node.js
+22 or newer, and the stable Rust toolchain, then run on an Apple Silicon Mac:
+
+```bash
+xcode-select --install
+brew install cmake node@22
+scripts/build.sh --platform macos
+```
+
+The command-line executable is written to `build/macos/sacd_extract`. CMake
+uses Apple's system iconv and statically bundles libFLAC, so the release does
+not depend on Homebrew libraries. Packaging uses Tauri's
+`aarch64-apple-darwin` sidecar name and creates an ad-hoc-signed DMG. The
+community release is not Apple-notarized, so macOS may require approval under
+System Settings > Privacy & Security on first launch.
+
 ## Build options
 
 | Option | Purpose |
 | --- | --- |
-| `--platform auto\|linux\|windows` | Detect the host or require a specific host platform |
-| `--build-dir DIR` | Override `build/linux` or `build/windows` |
+| `--platform auto\|linux\|macos\|windows` | Detect the host or require a specific host platform |
+| `--build-dir DIR` | Override `build/linux`, `build/macos`, or `build/windows` |
 | `--build-type TYPE` | Select the CMake build type; default `Release` |
 | `--package` | Create CLI archives, a host GUI bundle, and checksums |
 | `--skip-gui` | Build and test only the command-line extractor |
@@ -87,9 +106,11 @@ scripts/build.sh --package
 
 Artifacts are written under `build/dist`. The build script verifies that the
 Tauri sidecar is byte-identical to the extractor tested earlier in the same
-invocation. Packaging produces a single-file Linux AppImage or a Windows NSIS
-installer, rejects libxml and libFLAC runtime links on Linux, rejects
+invocation. Packaging produces a single-file Linux AppImage, Apple Silicon
+macOS DMG, or Windows NSIS installer. It rejects libxml and libFLAC runtime
+links on Linux, rejects Homebrew and dynamic libFLAC links on macOS, rejects
 non-system MinGW runtime DLLs on Windows, and writes SHA-256 checksum files.
 
 [Tagged releases](https://github.com/dev-zetta/sacd_extract2/releases) provide
-ready-to-run Linux and Windows x86-64 CLI packages, AppImages, and installers.
+ready-to-run Linux and Windows x86-64 packages plus Apple Silicon macOS CLI and
+DMG packages.

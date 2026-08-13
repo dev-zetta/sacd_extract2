@@ -16,10 +16,12 @@ usage() {
   cat <<'EOF'
 Usage: scripts/build.sh [options]
 
-Configure, build, and test sacd_extract and its Tauri GUI on Linux or Windows.
+Configure, build, and test sacd_extract and its Tauri GUI on Linux, macOS, or
+Windows.
 
 Options:
-  --platform auto|linux|windows  Target host platform (default: auto)
+  --platform auto|linux|macos|windows
+                                Target host platform (default: auto)
   --build-dir DIR               Build directory (default: build/<platform>)
   --build-type TYPE             CMake build type (default: Release)
   --package                     Create CLI and ready-to-run GUI packages
@@ -87,6 +89,7 @@ host_name=$(uname -s)
 if [[ $platform == auto ]]; then
   case "$host_name" in
     Linux*) platform=linux ;;
+    Darwin*) platform=macos ;;
     MINGW*|MSYS*) platform=windows ;;
     *) fail "unsupported host: $host_name" ;;
   esac
@@ -101,6 +104,20 @@ case "$platform" in
     cli_archive=sacd_extract-linux-x86_64.tar.gz
     gui_archive=sacd-extract-gui-linux-x86_64.AppImage
     gui_bundle=appimage
+    ;;
+  macos)
+    [[ $host_name == Darwin* ]] || fail 'macOS builds must run on a macOS host'
+    [[ $(uname -m) == arm64 ]] || \
+      fail 'macOS builds currently target Apple Silicon (arm64) only'
+    executable_name=sacd_extract
+    cmake_generator=()
+    cmake_platform_options=(
+      -DCMAKE_OSX_ARCHITECTURES=arm64
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+    )
+    cli_archive=sacd_extract-macos-arm64.tar.gz
+    gui_archive=sacd-extract-gui-macos-arm64.dmg
+    gui_bundle=dmg
     ;;
   windows)
     [[ $host_name == MINGW* || $host_name == MSYS* ]] || \
@@ -134,17 +151,26 @@ require_command cmake
 require_command ctest
 require_command cmp
 require_command git
-require_command sha256sum
 
-if [[ $platform == linux ]]; then
+if [[ $platform == linux || $platform == macos ]]; then
   require_command cc
   require_command c++
-  require_command ldd
   require_command tar
+  if [[ $platform == linux ]]; then
+    require_command ldd
+    require_command sha256sum
+  else
+    require_command codesign
+    require_command file
+    require_command hdiutil
+    require_command otool
+    require_command shasum
+  fi
 else
   require_command gcc
   require_command ninja
   require_command objdump
+  require_command sha256sum
 fi
 
 if ((with_gui)); then
@@ -167,10 +193,13 @@ if ((${#missing_commands[@]} > 0)); then
     printf '%s\n' \
       'Debian/Ubuntu: sudo apt-get install build-essential cmake git nodejs npm pkg-config file libssl-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev patchelf' >&2
     printf '%s\n' 'Install the stable Rust toolchain with rustup.' >&2
-  else
+  elif [[ $platform == windows ]]; then
     printf '%s\n' \
       'MSYS2 MINGW64: pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-libiconv git' >&2
     printf '%s\n' 'Install Node.js 22 or newer and the stable MSVC Rust toolchain separately.' >&2
+  else
+    printf '%s\n' \
+      'macOS: install the Xcode Command Line Tools, CMake, Node.js 22 or newer, and the stable Rust toolchain.' >&2
   fi
   exit 2
 fi
@@ -201,6 +230,16 @@ cmake \
   "${cmake_platform_options[@]}" \
   "${cmake_build_options[@]}"
 cmake --build "$build_dir" --parallel
+
+extractor="$build_dir/$executable_name"
+[[ -f $extractor ]] || fail "built extractor not found: $extractor"
+if [[ $platform == macos ]]; then
+  # Apple Silicon requires signed executable code. Use an ad-hoc signature for
+  # community builds that do not have an Apple Developer certificate.
+  codesign --force --sign - "$extractor"
+  codesign --verify --strict "$extractor"
+fi
+
 if ((sanitizers)); then
   ASAN_OPTIONS=detect_leaks=0 \
     UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
@@ -209,8 +248,6 @@ else
   ctest --test-dir "$build_dir" --output-on-failure
 fi
 
-extractor="$build_dir/$executable_name"
-[[ -f $extractor ]] || fail "built extractor not found: $extractor"
 if ((sanitizers)); then
   ASAN_OPTIONS=detect_leaks=0 \
     UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
@@ -227,7 +264,7 @@ if [[ $platform == linux ]]; then
   if ldd "$extractor" | grep -Eq 'libxml|libFLAC'; then
     fail 'unexpected libxml or libFLAC runtime dependency'
   fi
-else
+elif [[ $platform == windows ]]; then
   imports_file="$build_dir/windows-imports.txt"
   objdump -p "$extractor" >"$imports_file"
   printf 'Windows executable imports:\n'
@@ -235,6 +272,17 @@ else
   if grep -Eiq 'DLL Name: (libiconv|libintl|libwinpthread|libgcc)' \
       "$imports_file"; then
     fail 'unexpected MinGW runtime dependency'
+  fi
+else
+  imports_file="$build_dir/macos-imports.txt"
+  file "$extractor"
+  file "$extractor" | grep -q 'arm64' || \
+    fail 'macOS executable is not Apple Silicon arm64'
+  otool -L "$extractor" >"$imports_file"
+  printf 'macOS executable dependencies:\n'
+  cat "$imports_file"
+  if grep -Eq 'libFLAC|/opt/homebrew|/usr/local' "$imports_file"; then
+    fail 'unexpected non-system macOS runtime dependency'
   fi
 fi
 
@@ -274,7 +322,7 @@ cmake -E make_directory "$package_root/sacd_extract/licenses"
 cmake -E copy "$repo_root/licenses/libFLAC-COPYING.Xiph" \
   "$package_root/sacd_extract/licenses"
 
-if [[ $platform == linux ]]; then
+if [[ $platform == linux || $platform == macos ]]; then
   (
     cd "$package_root"
     cmake -E tar czf "$dist_root/$cli_archive" \
@@ -292,26 +340,36 @@ if ((with_gui)); then
   npm --prefix "$repo_root/gui" run package -- --bundles "$gui_bundle"
 
   bundle_directory="$repo_root/gui/src-tauri/target/release/bundle/$gui_bundle"
-  if [[ $platform == linux ]]; then
-    mapfile -t gui_bundles < <(
-      find "$bundle_directory" -maxdepth 1 -type f -name '*.AppImage'
-    )
-  else
-    mapfile -t gui_bundles < <(
-      find "$bundle_directory" -maxdepth 1 -type f -name '*-setup.exe'
-    )
-  fi
+  case "$platform" in
+    linux) gui_pattern='*.AppImage' ;;
+    macos) gui_pattern='*.dmg' ;;
+    windows) gui_pattern='*-setup.exe' ;;
+  esac
+  gui_bundles=()
+  while IFS= read -r gui_bundle_path; do
+    gui_bundles+=("$gui_bundle_path")
+  done < <(find "$bundle_directory" -maxdepth 1 -type f -name "$gui_pattern")
 
   ((${#gui_bundles[@]} == 1)) || \
     fail "expected one $gui_bundle bundle in $bundle_directory"
   cmake -E copy "${gui_bundles[0]}" "$dist_root/$gui_archive"
+  if [[ $platform == macos ]]; then
+    hdiutil verify "$dist_root/$gui_archive"
+  fi
 fi
 
 (
   cd "$dist_root"
-  sha256sum "$cli_archive" >"$cli_archive.sha256"
-  if ((with_gui)); then
-    sha256sum "$gui_archive" >"$gui_archive.sha256"
+  if [[ $platform == macos ]]; then
+    shasum -a 256 "$cli_archive" >"$cli_archive.sha256"
+    if ((with_gui)); then
+      shasum -a 256 "$gui_archive" >"$gui_archive.sha256"
+    fi
+  else
+    sha256sum "$cli_archive" >"$cli_archive.sha256"
+    if ((with_gui)); then
+      sha256sum "$gui_archive" >"$gui_archive.sha256"
+    fi
   fi
 )
 
