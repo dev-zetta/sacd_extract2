@@ -69,7 +69,6 @@ struct scarletbook_output_format_t
     int                             channel_count;
 
     FILE                           *fd;
-    char                           *write_cache;
     uint64_t                        write_length;
     uint64_t                        write_offset;
 

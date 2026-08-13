@@ -51,8 +51,6 @@
 #include "sacd_reader.h"
 
 
-#define WRITE_CACHE_SIZE 1 * 1024 * 1024
-
 extern scarletbook_format_handler_t const * dsdiff_format_fn(void);
 extern scarletbook_format_handler_t const * dsdiff_edit_master_format_fn(void);
 extern scarletbook_format_handler_t const * dsf_format_fn(void);
@@ -359,8 +357,19 @@ static int create_output_file(scarletbook_output_format_t *ft)
     sysFsChmod(ft->filename, S_IFMT | 0777); 
 #endif
 
-    ft->write_cache = malloc(WRITE_CACHE_SIZE);
-    setvbuf(ft->fd, ft->write_cache, _IOFBF , WRITE_CACHE_SIZE);
+    /*
+     * DSF writes are already block-sized.  Do not add a long-lived userspace
+     * cache here: corrupted cache contents used to be flushed as complete
+     * 1 MiB regions while the resulting file remained structurally valid.
+     * The operating system's file cache still coalesces these writes.
+     */
+    if (setvbuf(ft->fd, NULL, _IONBF, 0) != 0)
+    {
+        LOG(lm_main, LOG_ERROR, ("error disabling stdio buffering for %s", ft->filename));
+        fclose(ft->fd);
+        ft->fd = NULL;
+        goto error;
+    }
 
     ft->priv = calloc(1, ft->handler.priv_size);
 
@@ -389,7 +398,6 @@ static inline int close_output_file(scarletbook_output_format_t * ft)
         fclose(ft->fd);
     }	
 	
-    if(ft->write_cache)free(ft->write_cache);	
     if(ft->filename)free(ft->filename);	
     if(ft->priv)free(ft->priv);
     free(ft);

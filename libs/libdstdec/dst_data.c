@@ -416,7 +416,7 @@ int getbits(StrData* SD, long *outword, int out_bitptr)
         if (shift <= 0)
             *outword |= ((SD->DataByte & mask) >> -shift);
         else
-            *outword |= ((SD->DataByte & mask) << shift);
+            *outword |= ((unsigned long)(SD->DataByte & mask) << shift);
 
         out_bitptr -= thisbits;
         SD->BitPosition -= thisbits;
@@ -443,5 +443,3 @@ int get_in_bitcount(StrData* SD)
 {
   return SD->ByteCounter * 8 - SD->BitPosition;
 }
-
-
