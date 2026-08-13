@@ -1,0 +1,22 @@
+[package]
+name = "sacd-extract-gui"
+version = "0.6.0"
+description = "Tauri desktop interface for sacd_extract2"
+authors = ["git-moiseev <mail.moiseev@gmail.com>", "Gabriel Max <dev@zetta.app>"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/dev-zetta/sacd_extract2"
+
+[lib]
+name = "sacd_extract_gui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"

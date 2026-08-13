@@ -17,7 +17,7 @@ jobs:
   build:
     if: github.ref_type != 'tag'
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Check out repository
@@ -26,7 +26,17 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends cmake gcc make
+          sudo apt-get install --no-install-recommends \
+            cmake gcc make file libssl-dev libwebkit2gtk-4.1-dev \
+            libxdo-dev librsvg2-dev patchelf pkg-config
+
+      - name: Set up Rust for Tauri
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gui/src-tauri
 
       - name: Set up Node.js for GUI
         uses: actions/setup-node@v4
@@ -52,14 +62,14 @@ jobs:
         with:
           name: sacd-extract-gui-linux-x86_64
           path: |
-            build/dist/sacd-extract-gui-linux-x86_64.tar.gz
-            build/dist/sacd-extract-gui-linux-x86_64.tar.gz.sha256
+            build/dist/sacd-extract-gui-linux-x86_64.AppImage
+            build/dist/sacd-extract-gui-linux-x86_64.AppImage.sha256
           if-no-files-found: error
 
   windows:
     if: github.ref_type != 'tag'
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     defaults:
       run:
@@ -90,6 +100,14 @@ jobs:
           cache: npm
           cache-dependency-path: gui/package-lock.json
 
+      - name: Set up Rust for Tauri
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gui/src-tauri
+
       - name: Build, test, and package
         run: scripts/build.sh --platform windows --build-dir build/release --package
 
@@ -107,8 +125,8 @@ jobs:
         with:
           name: sacd-extract-gui-windows-x86_64
           path: |
-            build/dist/sacd-extract-gui-windows-x86_64.zip
-            build/dist/sacd-extract-gui-windows-x86_64.zip.sha256
+            build/dist/sacd-extract-gui-windows-x86_64-setup.exe
+            build/dist/sacd-extract-gui-windows-x86_64-setup.exe.sha256
           if-no-files-found: error
 
   sanitizers:
@@ -178,19 +196,19 @@ jobs:
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
               build/sacd_extract-windows-x86_64.zip \
               build/sacd_extract-windows-x86_64.zip.sha256 \
-              build/sacd-extract-gui-linux-x86_64.tar.gz \
-              build/sacd-extract-gui-linux-x86_64.tar.gz.sha256 \
-              build/sacd-extract-gui-windows-x86_64.zip \
-              build/sacd-extract-gui-windows-x86_64.zip.sha256 --clobber
+              build/sacd-extract-gui-linux-x86_64.AppImage \
+              build/sacd-extract-gui-linux-x86_64.AppImage.sha256 \
+              build/sacd-extract-gui-windows-x86_64-setup.exe \
+              build/sacd-extract-gui-windows-x86_64-setup.exe.sha256 --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               build/sacd_extract-linux-x86_64.tar.gz \
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
               build/sacd_extract-windows-x86_64.zip \
               build/sacd_extract-windows-x86_64.zip.sha256 \
-              build/sacd-extract-gui-linux-x86_64.tar.gz \
-              build/sacd-extract-gui-linux-x86_64.tar.gz.sha256 \
-              build/sacd-extract-gui-windows-x86_64.zip \
-              build/sacd-extract-gui-windows-x86_64.zip.sha256 \
+              build/sacd-extract-gui-linux-x86_64.AppImage \
+              build/sacd-extract-gui-linux-x86_64.AppImage.sha256 \
+              build/sacd-extract-gui-windows-x86_64-setup.exe \
+              build/sacd-extract-gui-windows-x86_64-setup.exe.sha256 \
               --verify-tag --generate-notes --title "sacd_extract ${GITHUB_REF_NAME#v}"
           fi

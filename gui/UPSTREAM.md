@@ -10,8 +10,9 @@ license. The upstream snapshot did not contain a standalone license file, so
 the corresponding MIT license text and upstream copyright attribution are
 preserved in [`LICENSE`](LICENSE).
 
-Adoption changes include Linux support, discovery of packaged and locally
-built `sacd_extract` executables, current long-form command-line options,
-automated tests, and GitHub Actions packaging. The upstream nested `.git`
-directory and its bundled, obsolete `sacd_extract.exe` binary were intentionally
-not imported.
+Adoption changes include Linux support, current long-form command-line options,
+automated tests, and GitHub Actions packaging. The original Electron host was
+subsequently replaced by a Tauri 2/Rust backend while retaining the upstream
+HTML/CSS interface and MIT attribution. The upstream nested `.git` directory
+and its bundled, obsolete `sacd_extract.exe` binary were intentionally not
+imported.

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "sacd-extract-gui",
+  "version": "0.6.0",
+  "identifier": "app.zetta.sacd-extract-gui",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "sacd_extract2",
+        "width": 1000,
+        "height": 760,
+        "minWidth": 850,
+        "minHeight": 650,
+        "backgroundColor": "#101419"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/sacd_extract"
+    ],
+    "resources": {
+      "../../README.md": "PROJECT-README.md",
+      "../../CHANGELOG.md": "CHANGELOG.md",
+      "../../COPYING": "COPYING",
+      "../LICENSE": "GUI-LICENSE",
+      "../UPSTREAM.md": "GUI-UPSTREAM.md"
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  }
+}

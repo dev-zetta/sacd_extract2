@@ -25,9 +25,9 @@ handling, CUE/XML output, TOC fallback, and CLI parsing/configuration behavior.
 
 ## GUI tests
 
-The GUI uses Node's built-in test runner for executable discovery, argument
-generation, version parsing, and exit-status mapping. It also syntax-checks the
-Electron main process, preload, renderer, and adapter:
+The GUI uses Rust unit tests for argument generation, version parsing,
+exit-status mapping, and output-file recognition. It also syntax-checks the
+small JavaScript Tauri bridge and renderer:
 
 ```bash
 npm ci --prefix gui
@@ -67,7 +67,8 @@ ignored `work/` directory.
 ## Continuous integration
 
 GitHub Actions calls `scripts/build.sh` for Ubuntu Release, Windows Release, and
-Linux ASan/UBSan jobs. It uploads tested CLI and GUI archives with checksums.
+Linux ASan/UBSan jobs. It uploads tested CLI archives, a Linux AppImage, and a
+Windows installer with checksums.
 When a version tag is pushed, the tag workflow reuses artifacts from the
 successful branch build for the same commit instead of compiling everything a
 second time.

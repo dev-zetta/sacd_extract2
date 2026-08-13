@@ -7,9 +7,9 @@ extracting their audio and metadata on Linux and Windows. It can write stereo or
 multichannel tracks as DSF or DSDIFF, decode DST during extraction, export an
 Edit Master file, and generate CUE/XML metadata.
 
-An adopted Electron desktop interface is included under [`gui/`](gui/README.md).
-Tagged releases provide ready-to-run GUI packages containing the matching
-extractor executable for Linux and Windows.
+An adopted Tauri 2 desktop interface is included under [`gui/`](gui/README.md).
+Tagged releases provide a Linux AppImage and Windows installer containing the
+matching extractor executable.
 
 This repository contains the host-native extractor. It does not authenticate
 or decrypt physical SACD media, so local input must already be available as a
@@ -39,8 +39,10 @@ and CUE export.
 
 ![sacd_extract2 desktop GUI](docs/images/gui-preview.webp)
 
-Release GUI archives are self-contained: the Actions workflow builds the CLI
-first and embeds that tested host-platform executable in the Electron package.
+Release GUI packages contain the exact host-platform extractor tested in the
+same Actions job. The Linux build is distributed as a single AppImage; Windows
+uses a compact installer and the WebView2 runtime included with current Windows
+installations.
 
 Set `SACD_EXTRACT_PATH=/absolute/path/to/sacd_extract` if the executable is not
 under `build/linux`, `build/windows`, the legacy build directories, the GUI

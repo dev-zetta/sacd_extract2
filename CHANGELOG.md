@@ -7,6 +7,8 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-13
+
 ### Changed
 
 - Move detailed Linux/Windows build, packaging, test, sanitizer, integration,
@@ -16,6 +18,13 @@ Earlier project history remains available in the
   extracted validation samples.
 - Add an optimized preview of the cross-platform desktop GUI to the main
   project README.
+- Replace the Electron runtime with a Tauri 2/Rust backend while retaining the
+  adopted HTML/CSS interface and narrow extractor controls.
+- Package the tested extractor as a Tauri sidecar, distribute Linux as a
+  single-file AppImage, and distribute Windows through a compact NSIS setup
+  executable.
+- Add Rust GUI regression tests, target-triple sidecar preparation, Tauri
+  dependency checks, and a project-owned cross-platform application icon.
 
 ## [0.5.0] - 2026-08-13
 
@@ -139,4 +148,5 @@ Commits:
 [0.4.0]: https://github.com/dev-zetta/sacd_extract2/compare/c9af7d4...v0.4.0
 [0.4.4]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.3...v0.4.4
 [0.5.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.4...v0.5.0
-[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.5.0...HEAD
+[0.6.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.5.0...v0.6.0
+[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.6.0...HEAD

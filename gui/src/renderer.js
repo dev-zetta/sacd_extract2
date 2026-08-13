@@ -75,7 +75,7 @@ let elapsedTimer = null;
 let logBuffer = '';
 
 
-function hasPreloadApi() {
+function hasApplicationApi() {
   return Boolean(
     window.sacd &&
     typeof window.sacd.selectIso === 'function' &&
@@ -418,7 +418,7 @@ function appendLog(text) {
 
 
 async function selectIso() {
-  if (!hasPreloadApi()) {
+  if (!hasApplicationApi()) {
     showFatalApiError();
     return;
   }
@@ -440,7 +440,7 @@ async function selectIso() {
 
 
 async function selectOutput() {
-  if (!hasPreloadApi()) {
+  if (!hasApplicationApi()) {
     showFatalApiError();
     return;
   }
@@ -516,7 +516,7 @@ async function startExtraction() {
     return;
   }
 
-  if (!hasPreloadApi()) {
+  if (!hasApplicationApi()) {
     showFatalApiError();
     return;
   }
@@ -600,7 +600,7 @@ async function stopExtraction() {
     typeof window.sacd.stopExtraction !== 'function'
   ) {
     finishWithError(
-      'The stopExtraction API is not available in preload.js.'
+      'The stopExtraction API is unavailable.'
     );
 
     return;
@@ -765,8 +765,7 @@ function showError(message, error = null) {
 
 function showFatalApiError() {
   finishWithError(
-    'The Electron preload API is unavailable. ' +
-    'Check preload.js and the BrowserWindow preload path.'
+    'The Tauri application API is unavailable. Restart the application.'
   );
 }
 
@@ -789,7 +788,99 @@ function installSegmentHandlers() {
 }
 
 
-function installIpcListeners() {
+function handleStatus(status) {
+  if (!status || !status.state) {
+    return;
+  }
+
+  switch (status.state) {
+    case 'engine-ready':
+      extractorReady = true;
+      extractorVersionText =
+        `sacd_extract client ` +
+        `${formatExtractorVersion(status.version)} ready`;
+
+      setEngineState(
+        'ready',
+        extractorVersionText
+      );
+
+      updateStartAvailability();
+      break;
+
+    case 'engine-error':
+      extractorReady = false;
+      extractorVersionText = '';
+
+      setEngineState(
+        'error',
+        status.message || 'Extractor unavailable'
+      );
+
+      updateStartAvailability();
+      break;
+
+    case 'running':
+      setRunningUi(true);
+
+      primaryStatus.textContent =
+        'Processing';
+
+      secondaryStatus.textContent =
+        status.message ||
+        'sacd_extract is running';
+
+      setEngineState(
+        'running',
+        'Processing'
+      );
+
+      break;
+
+    case 'completed':
+      finishSuccessfully(
+        status.message
+      );
+
+      break;
+
+    case 'partial':
+      finishPartially(
+        status.message ||
+        'Extraction completed with damaged output files.'
+      );
+
+      break;
+
+    case 'cancelled':
+      finishCancelled(
+        status.message
+      );
+
+      break;
+
+    case 'error':
+      finishWithError(
+        status.message ||
+        (
+          status.exitCode !== undefined
+            ? `Exit code ${status.exitCode}`
+            : 'Unknown extraction error'
+        )
+      );
+
+      break;
+
+    default:
+      console.warn(
+        'Unknown extraction state:',
+        status
+      );
+  }
+}
+
+
+function installApplicationListeners() {
   if (
     window.sacd &&
     typeof window.sacd.onOutput === 'function'
@@ -824,101 +915,7 @@ function installIpcListeners() {
     window.sacd &&
     typeof window.sacd.onStatus === 'function'
   ) {
-    window.sacd.onStatus((status) => {
-      if (!status || !status.state) {
-        return;
-      }
-
-      switch (status.state) {
-        case 'engine-ready':
-          extractorReady = true;
-          extractorVersionText =
-            `sacd_extract client ` +
-            `${formatExtractorVersion(status.version)} ready`;
-
-          setEngineState(
-            'ready',
-            extractorVersionText
-          );
-
-          updateStartAvailability();
-          break;
-
-        case 'engine-error':
-          extractorReady = false;
-          extractorVersionText = '';
-
-          setEngineState(
-            'error',
-            status.message || 'Extractor unavailable'
-          );
-
-          updateStartAvailability();
-          break;
-
-        case 'running':
-          setRunningUi(true);
-
-          primaryStatus.textContent =
-            'Processing';
-
-          secondaryStatus.textContent =
-            status.message ||
-            'sacd_extract is running';
-
-          setEngineState(
-            'running',
-            'Processing'
-          );
-
-          break;
-
-        case 'completed':
-          finishSuccessfully(
-            status.message
-          );
-
-          break;
-
-        case 'partial':
-          finishPartially(
-            status.message ||
-            'Extraction completed with damaged output files.'
-          );
-
-          break;
-
-        case 'cancelled':
-          finishCancelled(
-            status.message
-          );
-
-          break;
-
-        case 'error':
-          /*
-           * A terminated process may produce a non-zero exit code.
-           * Treat it as cancellation when cancellation was requested
-           * only if the main process sends state: "cancelled".
-           */
-          finishWithError(
-            status.message ||
-            (
-              status.exitCode !== undefined
-                ? `Exit code ${status.exitCode}`
-                : 'Unknown extraction error'
-            )
-          );
-
-          break;
-
-        default:
-          console.warn(
-            'Unknown extraction state:',
-            status
-          );
-      }
-    });
+    window.sacd.onStatus(handleStatus);
   }
 }
 
@@ -948,25 +945,34 @@ extractButton.addEventListener(
 
 
 installSegmentHandlers();
-installIpcListeners();
+installApplicationListeners();
 
 
-if (hasPreloadApi()) {
+if (hasApplicationApi()) {
   setEngineState(
     'off',
     'Waiting for sacd_extract'
   );
+
+  window.sacd.checkEngine()
+    .then(handleStatus)
+    .catch((error) => {
+      handleStatus({
+        state: 'engine-error',
+        message: error?.message || String(error),
+      });
+    });
 } else {
   setEngineState(
     'error',
-    'Electron preload unavailable'
+    'Tauri integration unavailable'
   );
 
   primaryStatus.textContent =
     'Application integration error';
 
   secondaryStatus.textContent =
-    'Check preload.js and restart Electron.';
+    'Restart the desktop application.';
 }
 
 

@@ -16,13 +16,13 @@ usage() {
   cat <<'EOF'
 Usage: scripts/build.sh [options]
 
-Configure, build, and test sacd_extract and its GUI on Linux or Windows.
+Configure, build, and test sacd_extract and its Tauri GUI on Linux or Windows.
 
 Options:
   --platform auto|linux|windows  Target host platform (default: auto)
   --build-dir DIR               Build directory (default: build/<platform>)
   --build-type TYPE             CMake build type (default: Release)
-  --package                     Create CLI and ready-to-run GUI archives
+  --package                     Create CLI and ready-to-run GUI packages
   --skip-gui                    Build and test only the command-line tool
   --sanitizers                  Enable AddressSanitizer and UBSan (Linux only)
   -h, --help                    Show this help
@@ -99,8 +99,8 @@ case "$platform" in
     cmake_generator=()
     cmake_platform_options=()
     cli_archive=sacd_extract-linux-x86_64.tar.gz
-    gui_archive=sacd-extract-gui-linux-x86_64.tar.gz
-    gui_package_name=sacd-extract-gui-linux-x64
+    gui_archive=sacd-extract-gui-linux-x86_64.AppImage
+    gui_bundle=appimage
     ;;
   windows)
     [[ $host_name == MINGW* || $host_name == MSYS* ]] || \
@@ -111,8 +111,8 @@ case "$platform" in
     cmake_generator=(-G Ninja)
     cmake_platform_options=(-DSACD_WINDOWS_STATIC=ON)
     cli_archive=sacd_extract-windows-x86_64.zip
-    gui_archive=sacd-extract-gui-windows-x86_64.zip
-    gui_package_name=sacd-extract-gui-win32-x64
+    gui_archive=sacd-extract-gui-windows-x86_64-setup.exe
+    gui_bundle=nsis
     ;;
   *)
     fail "unsupported platform: $platform"
@@ -147,21 +147,38 @@ else
 fi
 
 if ((with_gui)); then
+  require_command cargo
   require_command node
   require_command npm
+  require_command rustc
+  if [[ $platform == linux ]]; then
+    require_command pkg-config
+    if ((package)); then
+      require_command file
+      require_command patchelf
+    fi
+  fi
 fi
 
 if ((${#missing_commands[@]} > 0)); then
   printf 'Missing required commands: %s\n' "${missing_commands[*]}" >&2
   if [[ $platform == linux ]]; then
     printf '%s\n' \
-      'Debian/Ubuntu: sudo apt-get install build-essential cmake git nodejs npm' >&2
+      'Debian/Ubuntu: sudo apt-get install build-essential cmake git nodejs npm pkg-config file libssl-dev libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev patchelf' >&2
+    printf '%s\n' 'Install the stable Rust toolchain with rustup.' >&2
   else
     printf '%s\n' \
       'MSYS2 MINGW64: pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-libiconv git' >&2
-    printf '%s\n' 'Install Node.js 22 or newer separately.' >&2
+    printf '%s\n' 'Install Node.js 22 or newer and the stable MSVC Rust toolchain separately.' >&2
   fi
   exit 2
+fi
+
+if ((with_gui)) && [[ $platform == linux ]]; then
+  pkg-config --exists webkit2gtk-4.1 || \
+    fail 'WebKitGTK 4.1 development files are required for the Tauri GUI (Debian/Ubuntu: libwebkit2gtk-4.1-dev)'
+  pkg-config --exists librsvg-2.0 || \
+    fail 'librsvg development files are required for the Tauri GUI (Debian/Ubuntu: librsvg2-dev)'
 fi
 
 printf 'Building for %s in %s\n' "$platform" "$build_dir"
@@ -219,6 +236,17 @@ else
 fi
 
 if ((with_gui)); then
+  target_triple=$(rustc --print host-tuple)
+  sidecar_directory="$repo_root/gui/src-tauri/binaries"
+  sidecar="$sidecar_directory/sacd_extract-$target_triple"
+  if [[ $platform == windows ]]; then
+    sidecar+=.exe
+  fi
+  cmake -E make_directory "$sidecar_directory"
+  cmake -E copy "$extractor" "$sidecar"
+  cmp "$extractor" "$sidecar" || \
+    fail 'prepared Tauri sidecar differs from the tested executable'
+
   npm ci --prefix "$repo_root/gui" --no-audit
   npm --prefix "$repo_root/gui" test
   npm --prefix "$repo_root/gui" run check
@@ -255,41 +283,22 @@ else
 fi
 
 if ((with_gui)); then
-  extractor_for_node=$extractor
-  if [[ $platform == windows ]]; then
-    extractor_for_node=$(cygpath -w "$extractor")
-  fi
+  npm --prefix "$repo_root/gui" run package -- --bundles "$gui_bundle"
 
-  SACD_EXTRACT_BINARY="$extractor_for_node" \
-    npm --prefix "$repo_root/gui" run package -- --arch=x64
-
-  gui_package="$repo_root/gui/out/$gui_package_name"
-  embedded_extractor="$gui_package/resources/$executable_name"
-  [[ -f $embedded_extractor ]] || \
-    fail "packaged extractor not found: $embedded_extractor"
-  cmp "$extractor" "$embedded_extractor" || \
-    fail 'packaged extractor differs from the tested executable'
-
-  cmake -E copy "$repo_root/README.md" "$gui_package/PROJECT-README.md"
-  cmake -E copy "$repo_root/CHANGELOG.md" "$gui_package/CHANGELOG.md"
-  cmake -E copy "$repo_root/COPYING" "$gui_package/COPYING"
-  cmake -E copy "$repo_root/gui/LICENSE" "$gui_package/GUI-LICENSE"
-  cmake -E copy "$repo_root/gui/UPSTREAM.md" "$gui_package/GUI-UPSTREAM.md"
-
+  bundle_directory="$repo_root/gui/src-tauri/target/release/bundle/$gui_bundle"
   if [[ $platform == linux ]]; then
-    (
-      cd "$repo_root/gui/out"
-      cmake -E tar czf "$dist_root/$gui_archive" \
-        --format=gnutar \
-        -- "$gui_package_name"
+    mapfile -t gui_bundles < <(
+      find "$bundle_directory" -maxdepth 1 -type f -name '*.AppImage'
     )
   else
-    (
-      cd "$repo_root/gui/out"
-      cmake -E tar cf "$dist_root/$gui_archive" \
-        --format=zip "$gui_package_name"
+    mapfile -t gui_bundles < <(
+      find "$bundle_directory" -maxdepth 1 -type f -name '*-setup.exe'
     )
   fi
+
+  ((${#gui_bundles[@]} == 1)) || \
+    fail "expected one $gui_bundle bundle in $bundle_directory"
+  cmake -E copy "${gui_bundles[0]}" "$dist_root/$gui_archive"
 fi
 
 (
