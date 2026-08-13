@@ -37,6 +37,8 @@ extractor with its current position-independent long options. It supports DSF
 or DSDIFF output, stereo, multichannel, or both areas, optional DST decoding,
 and CUE export.
 
+![sacd_extract2 desktop GUI](docs/images/gui-preview.webp)
+
 Release GUI archives are self-contained: the Actions workflow builds the CLI
 first and embeds that tested host-platform executable in the Electron package.
 

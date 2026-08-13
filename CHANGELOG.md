@@ -14,6 +14,8 @@ Earlier project history remains available in the
 - Archive the historical DSDIFF, DSF, and Sony DSD format specification PDFs.
 - Ignore the repository-local `work/` directory reserved for SACD images and
   extracted validation samples.
+- Add an optimized preview of the cross-platform desktop GUI to the main
+  project README.
 
 ## [0.5.0] - 2026-08-13
 
