@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(sacd_extract VERSION 0.6.0 LANGUAGES C)
+project(sacd_extract VERSION 0.7.0 LANGUAGES C)
 
 include(CTest)
 

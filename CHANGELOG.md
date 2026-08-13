@@ -7,10 +7,16 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-13
+
 ### Changed
 
 - Upgrade `actions/setup-node` to v7 so GitHub Actions uses its native Node.js
   24 runtime instead of compatibility-forcing the deprecated Node.js 20 action.
+- Make the Tauri GUI fill its webview without the inset outer card, and use a
+  responsive desktop grid that avoids a scrollbar at the default window size.
+- Replace the README preview with an optimized screenshot of the responsive
+  Tauri interface.
 
 ## [0.6.0] - 2026-08-13
 
@@ -154,4 +160,5 @@ Commits:
 [0.4.4]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.3...v0.4.4
 [0.5.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.4...v0.5.0
 [0.6.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.5.0...v0.6.0
-[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.6.0...HEAD
+[0.7.0]: https://github.com/dev-zetta/sacd_extract2/compare/v0.6.0...v0.7.0
+[Unreleased]: https://github.com/dev-zetta/sacd_extract2/compare/v0.7.0...HEAD

@@ -799,3 +799,144 @@ body {
     border-right: 0;
   }
 }
+
+/* Fill the Tauri webview and keep the default desktop layout within one view. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.sacd-shell {
+  display: flex;
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.app-card {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.app-header {
+  padding: 16px 22px;
+}
+
+.sacd-body {
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 0.66fr);
+  gap: 12px;
+  padding: 16px 18px 18px;
+}
+
+.source-card,
+.settings-grid,
+.option-row {
+  grid-column: 1 / -1;
+}
+
+.source-card,
+.settings-card {
+  padding: 14px 16px;
+}
+
+.section-heading {
+  margin-bottom: 9px;
+}
+
+.field-block + .field-block {
+  margin-top: 9px;
+}
+
+.field-block label {
+  margin-bottom: 4px;
+}
+
+.path-input-wrap input,
+.action-button {
+  height: 40px;
+}
+
+.segment {
+  min-height: 52px;
+  padding: 9px 12px;
+}
+
+.switch-option {
+  min-height: 56px;
+  padding: 10px 13px;
+}
+
+.extract-section {
+  grid-column: 1;
+  grid-row: 4 / span 2;
+  min-height: 148px;
+  justify-content: center;
+  padding: 8px;
+  gap: 9px;
+}
+
+.extract-button {
+  width: 84px;
+  height: 84px;
+}
+
+.extract-button svg {
+  width: 30px;
+}
+
+.progress-panel {
+  grid-column: 2;
+  grid-row: 4;
+  align-self: stretch;
+  padding: 14px 16px;
+}
+
+.log-panel {
+  grid-column: 2;
+  grid-row: 5;
+  align-self: start;
+}
+
+.log-panel summary {
+  padding: 12px 15px;
+}
+
+@media (max-width: 760px) {
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .sacd-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .source-card,
+  .settings-grid,
+  .option-row,
+  .extract-section,
+  .progress-panel,
+  .log-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .extract-section {
+    min-height: 0;
+  }
+}
