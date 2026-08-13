@@ -15,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -44,6 +44,38 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Node.js for GUI
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+
+      - name: Test GUI
+        run: |
+          npm ci --prefix gui
+          npm --prefix gui test
+          npm --prefix gui run check
+
+      - name: Package GUI with tested extractor
+        env:
+          SACD_EXTRACT_BINARY: ${{ github.workspace }}/build/release/sacd_extract
+        run: |
+          npm --prefix gui run package -- --arch=x64
+          gui_package=gui/out/sacd-extract-gui-linux-x64
+          test -x "$gui_package/resources/sacd_extract"
+          install -m 0644 README.md "$gui_package/PROJECT-README.md"
+          install -m 0644 CHANGELOG.md "$gui_package/CHANGELOG.md"
+          install -m 0644 COPYING "$gui_package/COPYING"
+          install -m 0644 gui/LICENSE "$gui_package/GUI-LICENSE"
+          install -m 0644 gui/UPSTREAM.md "$gui_package/GUI-UPSTREAM.md"
+          tar -C gui/out -czf \
+            "$GITHUB_WORKSPACE/build/sacd-extract-gui-linux-x86_64.tar.gz" \
+            sacd-extract-gui-linux-x64
+          cd build
+          sha256sum sacd-extract-gui-linux-x86_64.tar.gz > \
+            sacd-extract-gui-linux-x86_64.tar.gz.sha256
+
       - name: Package executable
         run: |
           mkdir -p build/package/sacd_extract
@@ -62,9 +94,18 @@ jobs:
             build/sacd_extract-linux-x86_64.tar.gz.sha256
           if-no-files-found: error
 
+      - name: Upload GUI
+        uses: actions/upload-artifact@v7
+        with:
+          name: sacd-extract-gui-linux-x86_64
+          path: |
+            build/sacd-extract-gui-linux-x86_64.tar.gz
+            build/sacd-extract-gui-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
+
   windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     defaults:
       run:
@@ -108,6 +149,39 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Node.js for GUI
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+
+      - name: Test GUI
+        run: |
+          npm ci --prefix gui
+          npm --prefix gui test
+          npm --prefix gui run check
+
+      - name: Package GUI with tested extractor
+        env:
+          SACD_EXTRACT_BINARY: ${{ github.workspace }}/build/release/sacd_extract.exe
+        run: |
+          npm --prefix gui run package -- --arch=x64
+          gui_package=gui/out/sacd-extract-gui-win32-x64
+          test -f "$gui_package/resources/sacd_extract.exe"
+          cp README.md "$gui_package/PROJECT-README.md"
+          cp CHANGELOG.md "$gui_package/CHANGELOG.md"
+          cp COPYING "$gui_package/COPYING"
+          cp gui/LICENSE "$gui_package/GUI-LICENSE"
+          cp gui/UPSTREAM.md "$gui_package/GUI-UPSTREAM.md"
+          cd gui/out
+          cmake -E tar cf \
+            ../../build/sacd-extract-gui-windows-x86_64.zip \
+            --format=zip sacd-extract-gui-win32-x64
+          cd ../..
+          sha256sum build/sacd-extract-gui-windows-x86_64.zip > \
+            build/sacd-extract-gui-windows-x86_64.zip.sha256
+
       - name: Package executable
         run: |
           mkdir -p build/package/sacd_extract
@@ -125,6 +199,15 @@ jobs:
           path: |
             build/sacd_extract-windows-x86_64.zip
             build/sacd_extract-windows-x86_64.zip.sha256
+          if-no-files-found: error
+
+      - name: Upload GUI
+        uses: actions/upload-artifact@v7
+        with:
+          name: sacd-extract-gui-windows-x86_64
+          path: |
+            build/sacd-extract-gui-windows-x86_64.zip
+            build/sacd-extract-gui-windows-x86_64.zip.sha256
           if-no-files-found: error
 
   sanitizers:
@@ -180,6 +263,18 @@ jobs:
           name: sacd_extract-windows-x86_64
           path: build
 
+      - name: Download tested Linux GUI
+        uses: actions/download-artifact@v8
+        with:
+          name: sacd-extract-gui-linux-x86_64
+          path: build
+
+      - name: Download tested Windows GUI
+        uses: actions/download-artifact@v8
+        with:
+          name: sacd-extract-gui-windows-x86_64
+          path: build
+
       - name: Attach tested binary to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -189,12 +284,20 @@ jobs:
               build/sacd_extract-linux-x86_64.tar.gz \
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
               build/sacd_extract-windows-x86_64.zip \
-              build/sacd_extract-windows-x86_64.zip.sha256 --clobber
+              build/sacd_extract-windows-x86_64.zip.sha256 \
+              build/sacd-extract-gui-linux-x86_64.tar.gz \
+              build/sacd-extract-gui-linux-x86_64.tar.gz.sha256 \
+              build/sacd-extract-gui-windows-x86_64.zip \
+              build/sacd-extract-gui-windows-x86_64.zip.sha256 --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               build/sacd_extract-linux-x86_64.tar.gz \
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
               build/sacd_extract-windows-x86_64.zip \
               build/sacd_extract-windows-x86_64.zip.sha256 \
+              build/sacd-extract-gui-linux-x86_64.tar.gz \
+              build/sacd-extract-gui-linux-x86_64.tar.gz.sha256 \
+              build/sacd-extract-gui-windows-x86_64.zip \
+              build/sacd-extract-gui-windows-x86_64.zip.sha256 \
               --verify-tag --generate-notes --title "sacd_extract ${GITHUB_REF_NAME#v}"
           fi

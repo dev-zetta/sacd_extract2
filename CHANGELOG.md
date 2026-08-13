@@ -12,6 +12,17 @@ Earlier project history remains available in the
 - Move the extractor entry point, bundled getopt implementation, and CMake
   project from `tools/sacd_extract/` to the root-level `src/` directory.
 
+### Added
+
+- Adopt the MIT-licensed Electron GUI from `git-moiseev/sacd_extract`, retain
+  its upstream attribution, and integrate it under `gui/` without nested Git
+  metadata or the obsolete bundled extractor binary.
+- Add Linux and Windows executable discovery plus current long-form CLI
+  argument generation for DSF/DSDIFF, stereo/multichannel, DST conversion, and
+  CUE export.
+- Test the GUI adapter and package ready-to-run Linux and Windows GUI archives
+  containing the matching, tested extractor in GitHub Actions.
+
 ## [0.4.4] - 2026-08-13
 
 ### Added

@@ -7,6 +7,10 @@ extracting their audio and metadata on Linux and Windows. It can write stereo or
 multichannel tracks as DSF or DSDIFF, decode DST during extraction, export an
 Edit Master file, and generate CUE/XML metadata.
 
+An adopted Electron desktop interface is included under [`gui/`](gui/README.md).
+Tagged releases provide ready-to-run GUI packages containing the matching
+extractor executable for Linux and Windows.
+
 This repository contains the host-native extractor. It does not authenticate
 or decrypt physical SACD media, so local input must already be available as a
 readable SACD ISO image. A compatible network source can also be supplied as
@@ -24,6 +28,29 @@ readable SACD ISO image. A compatible network source can also be supplied as
 - Configurable ID3v2.3 and ID3v2.4 tagging
 - Optional output directories, performer naming, pause handling, and DSF
   padding control
+- Cross-platform desktop GUI for the most common extraction settings
+
+## Desktop GUI
+
+The GUI selects a local SACD ISO and destination directory, then drives this
+extractor with its current position-independent long options. It supports DSF
+or DSDIFF output, stereo, multichannel, or both areas, optional DST decoding,
+and CUE export.
+
+Release GUI archives are self-contained: the Actions workflow builds the CLI
+first and embeds that tested host-platform executable in the Electron package.
+To run the GUI from source after building the CLI:
+
+```bash
+npm ci --prefix gui
+npm --prefix gui test
+npm --prefix gui start
+```
+
+Set `SACD_EXTRACT_PATH=/absolute/path/to/sacd_extract` if the executable is not
+under `build/release`, `build/sacd_extract`, the GUI directory, or `PATH`. See
+the [GUI documentation](gui/README.md) for packaging details and retained
+upstream provenance.
 
 ## Build on Linux
 
@@ -240,14 +267,19 @@ corruption issue is documented in
 ## Continuous integration
 
 The GitHub Actions workflow builds and tests Release configurations on Ubuntu
-22.04 and Windows, checks that the packaged binaries do not depend on libxml or
-MinGW runtime DLLs, and attaches both executable archives and their checksums to
-tagged GitHub Releases. It also runs the Linux unit suite under ASan and UBSan.
+22.04 and Windows, checks that the packaged CLI binaries do not depend on libxml
+or MinGW runtime DLLs, runs the GUI adapter tests and syntax checks, and packages
+the GUI with the tested extractor. Tagged GitHub Releases receive both CLI and
+ready-to-run GUI archives with checksums. The workflow also runs the Linux C
+unit suite under ASan and UBSan.
 
 ## License
 
 This project is distributed under the GNU General Public License version 2.
 See [`COPYING`](COPYING).
+
+The adopted GUI is distributed under the MIT license; see
+[`gui/LICENSE`](gui/LICENSE) and [`gui/UPSTREAM.md`](gui/UPSTREAM.md).
 
 ## Authors
 

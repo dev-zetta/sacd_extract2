@@ -1,0 +1,39 @@
+{
+  "name": "sacd-extract-gui",
+  "productName": "sacd-extract-gui",
+  "version": "1.0.0",
+  "description": "Desktop interface for extracting DSF and DSDIFF audio from SACD ISO images",
+  "main": "src/index.js",
+  "private": true,
+  "scripts": {
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "check": "node --check src/index.js && node --check src/preload.js && node --check src/renderer.js && node --check src/extractor.js",
+    "lint": "npm run check",
+    "test": "node --test"
+  },
+  "keywords": [
+    "sacd",
+    "dsd",
+    "dsf",
+    "dsdiff",
+    "audio-extraction"
+  ],
+  "author": {
+    "name": "git-moiseev",
+    "email": "mail.moiseev@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dev-zetta/sacd_extract2.git",
+    "directory": "gui"
+  },
+  "homepage": "https://github.com/dev-zetta/sacd_extract2#readme",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/plugin-fuses": "^7.11.2",
+    "@electron/fuses": "^1.8.0",
+    "electron": "43.2.0"
+  }
+}

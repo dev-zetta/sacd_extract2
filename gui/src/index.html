@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SACD Extract</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="sacd.css">
+</head>
+<body>
+  <main class="app-shell sacd-shell">
+    <section class="panel-card app-card">
+      <header class="panel-header app-header">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <h1 class="app-title">SACD Extract</h1>
+            <p class="app-subtitle">Extract DSF or DFF audio from SACD ISO images</p>
+          </div>
+        </div>
+        <div class="power-led" title="Extractor status">
+          <span id="engineLed" class="power-led-dot on"></span>
+          <span id="engineStatus">Waiting for sacd_extract</span>
+        </div>
+      </header>
+
+      <div class="panel-body sacd-body">
+        <section class="source-card">
+          <div class="section-heading">
+            <span>Source and destination</span>
+            <span class="section-hint">You can also drag an ISO file onto this window</span>
+          </div>
+<!--
+          <div id="dropZone" class="drop-zone" tabindex="0">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 2v6h6M8 14h8M8 18h5"/>
+            </svg>
+            <div>
+              <strong>Drop an SACD ISO here</strong>
+              <span>or use Browse to select one</span>
+            </div>
+          </div>
+-->
+          <div class="field-block">
+            <label for="sourcePath">Source ISO</label>
+            <div class="path-control">
+              <div class="path-input-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                <input id="sourcePath" type="text" placeholder="Select an SACD .iso file" readonly>
+              </div>
+              <button id="browseSource" class="action-button secondary-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6"/></svg>
+                Browse
+              </button>
+            </div>
+          </div>
+
+          <div class="field-block">
+            <label for="outputPath">Destination folder</label>
+            <div class="path-control">
+              <div class="path-input-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6"/></svg>
+                <input id="outputPath" type="text" placeholder="Select an output folder" readonly>
+              </div>
+              <button id="browseOutput" class="action-button secondary-button" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6"/></svg>
+                Browse
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-grid">
+          <div class="settings-card">
+            <div class="section-heading"><span>Output format</span></div>
+            <div class="segmented-control" role="radiogroup" aria-label="Output format">
+              <label class="segment active">
+                <input type="radio" name="format" value="dsf" checked>
+                <span class="mini-input-led"></span>
+                <span><strong>DSF</strong><small>Metadata-friendly</small></span>
+              </label>
+              <label class="segment">
+                <input type="radio" name="format" value="dff">
+                <span class="mini-input-led"></span>
+                <span><strong>DFF</strong><small>Philips DSD format</small></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="section-heading"><span>Audio area</span></div>
+            <div class="segmented-control three" role="radiogroup" aria-label="Audio area">
+              <label class="segment active">
+                <input type="radio" name="area" value="stereo" checked>
+                <span class="mini-input-led"></span>
+                <span><strong>Stereo</strong></span>
+              </label>
+              <label class="segment">
+                <input type="radio" name="area" value="multichannel">
+                <span class="mini-input-led"></span>
+                <span><strong>Multi</strong></span>
+              </label>
+              <label class="segment">
+                <input type="radio" name="area" value="both">
+                <span class="mini-input-led"></span>
+                <span><strong>Both</strong></span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="option-row">
+          <label class="switch-option">
+            <input id="decodeDst" type="checkbox" checked>
+            <span class="check-box"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
+            <span><strong>Decode DST</strong><small>Convert compressed DST frames to DSD</small></span>
+          </label>
+          <label class="switch-option">
+            <input id="exportCuesheet" type="checkbox">
+            <span class="check-box"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span>
+            <span><strong>Export CUE sheet</strong><small>Create CUE metadata for the extracted tracks</small></span>
+          </label>
+        </section>
+
+        <section class="extract-section">
+<button
+  id="extractButton"
+  class="power-button extract-button is-on"
+  type="button"
+  disabled
+  aria-label="Start extraction"
+  title="Start extraction"
+>
+  <svg
+    id="waitIcon"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <path d="M8 6v12"></path>
+    <path d="M16 6v12"></path>
+  </svg>
+
+  <svg
+    id="startIcon"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    hidden
+  >
+    <path d="m8 5 10 7-10 7z"></path>
+  </svg>
+
+  <svg
+    id="stopIcon"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    hidden
+  >
+    <rect
+      x="6"
+      y="6"
+      width="12"
+      height="12"
+      rx="1"
+    ></rect>
+  </svg>
+</button>
+          <div>
+            <strong id="primaryStatus">Select an ISO file</strong>
+            <span id="secondaryStatus">The extraction controls will become available.</span>
+          </div>
+        </section>
+
+        <section class="progress-panel" aria-live="polite">
+          <div class="progress-topline">
+            <span id="progressText">Ready</span>
+            <span id="progressPercent">0%</span>
+          </div>
+          <div class="progress-track"><div id="progressBar" class="progress-bar" style="width:0%"></div></div>
+          <div class="status-row extraction-stats">
+            <div class="status-item"><span class="status-label">Track</span><span id="trackStatus" class="status-value">—</span></div>
+            <div class="status-item"><span class="status-label">Elapsed</span><span id="elapsedStatus" class="status-value">—</span></div>
+            <div class="status-item"><span class="status-label">Output</span><span id="outputStatus" class="status-value">—</span></div>
+          </div>
+        </section>
+
+
+
+<details
+  id="logPanel"
+  class="log-panel"
+>
+  <summary>Extraction log</summary>
+
+  <pre id="logOutput">[ready] Waiting for an SACD ISO image…</pre>
+</details>
+
+
+      </div>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
