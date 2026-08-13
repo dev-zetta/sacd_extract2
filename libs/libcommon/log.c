@@ -4,8 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
 #include <time.h>
+
+#include <pthread.h>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #include "log.h"
 
@@ -21,15 +25,30 @@ static int logger_enabled;
 static log_module_level_t logger_level = LOG_INFO;
 static pending_log_line_t *pending_head;
 static pending_log_line_t *pending_tail;
-static mtx_t log_mutex;
-static once_flag log_mutex_once = ONCE_FLAG_INIT;
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static _Thread_local log_module_info_t *context_module;
 static _Thread_local log_module_level_t context_level;
 static log_time_provider_t time_provider;
 
 static int system_time_provider(struct timespec *now)
 {
+#if defined(_WIN32)
+    FILETIME file_time;
+    ULARGE_INTEGER ticks;
+    const unsigned long long windows_epoch = 116444736000000000ULL;
+
+    GetSystemTimeAsFileTime(&file_time);
+    ticks.LowPart = file_time.dwLowDateTime;
+    ticks.HighPart = file_time.dwHighDateTime;
+    if (ticks.QuadPart < windows_epoch)
+        return -1;
+    ticks.QuadPart -= windows_epoch;
+    now->tv_sec = (time_t)(ticks.QuadPart / 10000000ULL);
+    now->tv_nsec = (long)((ticks.QuadPart % 10000000ULL) * 100ULL);
+    return 0;
+#else
     return timespec_get(now, TIME_UTC) == TIME_UTC ? 0 : -1;
+#endif
 }
 
 void log_set_time_provider(log_time_provider_t provider)
@@ -37,20 +56,14 @@ void log_set_time_provider(log_time_provider_t provider)
     time_provider = provider;
 }
 
-static void init_mutex(void)
-{
-    (void)mtx_init(&log_mutex, mtx_plain);
-}
-
 static void lock_log(void)
 {
-    call_once(&log_mutex_once, init_mutex);
-    (void)mtx_lock(&log_mutex);
+    (void)pthread_mutex_lock(&log_mutex);
 }
 
 static void unlock_log(void)
 {
-    (void)mtx_unlock(&log_mutex);
+    (void)pthread_mutex_unlock(&log_mutex);
 }
 
 const char *log_level_name(log_module_level_t level)

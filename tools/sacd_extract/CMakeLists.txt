@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(sacd_extract VERSION 0.4.3 LANGUAGES C)
+project(sacd_extract VERSION 0.4.4 LANGUAGES C)
 
 include(CTest)
 
@@ -18,19 +18,12 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment ve
 set(ENV{MACOSX_DEPLOYMENT_TARGET} 10.13)
 endif()
 
-# Mingw-w64 support
-OPTION(MINGW64 "Mingw-w64" NO)
-if (MINGW64 MATCHES "YES")
-    MESSAGE(STATUS "Mingw-w64 mode enabled")
-    SET(CMAKE_SYSTEM_NAME Windows)
-    SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
-    SET(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
-    SET(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}-gcc)
-    SET(CMAKE_FIND_ROOT_PATH /usr/${TOOLCHAIN_PREFIX})
-endif (MINGW64 MATCHES "YES")
+option(SACD_WINDOWS_STATIC
+       "Statically link non-system libraries into the Windows executable" OFF)
 
 execute_process(
     COMMAND git describe --always --dirty --abbrev=12
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_VARIABLE GIT_COMMIT_HASH
     RESULT_VARIABLE GIT_COMMIT_HASH_RESULT
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -38,6 +31,7 @@ execute_process(
 
 execute_process(
     COMMAND git remote get-url origin
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_VARIABLE GIT_REPO_URL
     RESULT_VARIABLE GIT_REPO_URL_RESULT
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -86,7 +80,7 @@ if (CMAKE_COMPILER_IS_GNUCC OR (CMAKE_C_COMPILER_ID MATCHES "Clang"))
         -pipe
         -Wall -Wextra -Wcast-align -Wpointer-arith
         -Wno-unused-parameter)
- if (MINGW64 MATCHES "YES")
+ if (WIN32)
      add_definitions(
         -fno-stack-protector)
  else ()
@@ -155,9 +149,40 @@ add_executable(sacd_extract ${main_headers} ${main_sources})
 target_link_libraries(sacd_extract PRIVATE sacd_extract_core)
 
 if(WIN32)
-    add_definitions(-D_FILE_OFFSET_BITS=64 -DUNICODE -D_UNICODE)
-    target_compile_options(${PROJECT_NAME} PRIVATE -municode)
-    target_link_libraries(sacd_extract_core PUBLIC -lpthread -lws2_32 -liconv -lbcrypt)
+    if(NOT MINGW)
+        message(FATAL_ERROR
+                "The Windows build requires the MinGW-w64 toolchain. "
+                "Configure from an MSYS2 MinGW shell.")
+    endif()
+
+    if(SACD_WINDOWS_STATIC)
+        set(_SACD_LIBRARY_SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    endif()
+    find_package(Iconv REQUIRED)
+    if(SACD_WINDOWS_STATIC)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES "${_SACD_LIBRARY_SUFFIXES}")
+        unset(_SACD_LIBRARY_SUFFIXES)
+    endif()
+    target_compile_definitions(sacd_extract_core PUBLIC
+        _FILE_OFFSET_BITS=64
+        UNICODE
+        _UNICODE)
+    target_compile_definitions(sacd_extract PRIVATE
+        _FILE_OFFSET_BITS=64
+        UNICODE
+        _UNICODE)
+    target_link_libraries(sacd_extract_core PUBLIC
+        Threads::Threads
+        Iconv::Iconv
+        ws2_32)
+    # main.c uses wmain so paths and arguments remain Unicode on Windows.
+    target_link_options(sacd_extract PRIVATE -municode)
+
+    if(SACD_WINDOWS_STATIC)
+        target_compile_definitions(sacd_extract_core PUBLIC LIBICONV_STATIC)
+        target_link_options(sacd_extract PRIVATE -static -static-libgcc)
+    endif()
 elseif(APPLE)
     add_definitions(-D_FILE_OFFSET_BITS=64)
     target_link_libraries(sacd_extract_core PUBLIC -liconv)

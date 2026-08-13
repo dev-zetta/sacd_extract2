@@ -3,7 +3,7 @@
 Project repository: [github.com/dev-zetta/sacd_extract2](https://github.com/dev-zetta/sacd_extract2)
 
 `sacd_extract` is a command-line tool for inspecting readable SACD images and
-extracting their audio and metadata on Linux. It can write stereo or
+extracting their audio and metadata on Linux and Windows. It can write stereo or
 multichannel tracks as DSF or DSDIFF, decode DST during extraction, export an
 Edit Master file, and generate CUE/XML metadata.
 
@@ -55,9 +55,36 @@ build/sacd_extract/sacd_extract --help
 ```
 
 [Tagged releases](https://github.com/dev-zetta/sacd_extract2/releases) provide
-a ready-to-run `sacd_extract-linux-x86_64.tar.gz` archive and matching SHA-256
-checksum. The packaged executable does not depend on libxml2; on Linux it only
-requires the standard C runtime.
+ready-to-run Linux and Windows x86-64 archives with matching SHA-256 checksums.
+The packaged executables do not depend on libxml2; the Linux binary only needs
+the standard C runtime, and the Windows binary statically includes its MinGW
+and libiconv dependencies.
+
+## Build on Windows
+
+The supported Windows build uses 64-bit MinGW-w64 from MSYS2 rather than the
+removed legacy Visual Studio project. Install MSYS2, open its **MINGW64** shell,
+and install the toolchain:
+
+```bash
+pacman -Syu
+pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
+  mingw-w64-x86_64-ninja mingw-w64-x86_64-libiconv
+```
+
+After restarting the MINGW64 shell if the MSYS2 update requests it, configure,
+build, and test from the repository root:
+
+```bash
+cmake -S tools/sacd_extract -B build/windows -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DSACD_WINDOWS_STATIC=ON
+cmake --build build/windows --parallel
+ctest --test-dir build/windows --output-on-failure
+build/windows/sacd_extract.exe --version
+```
+
+`SACD_WINDOWS_STATIC=ON` is used for distributable builds and folds the
+non-system MinGW, pthread, and iconv libraries into `sacd_extract.exe`.
 
 ## Usage
 
@@ -212,10 +239,10 @@ corruption issue is documented in
 
 ## Continuous integration
 
-The GitHub Actions workflow builds and tests the Release configuration on
-Ubuntu 22.04, verifies that libxml is absent from its runtime dependencies,
-and attaches the executable archive and checksum to tagged GitHub Releases.
-It also runs the unit suite under ASan and UBSan.
+The GitHub Actions workflow builds and tests Release configurations on Ubuntu
+22.04 and Windows, checks that the packaged binaries do not depend on libxml or
+MinGW runtime DLLs, and attaches both executable archives and their checksums to
+tagged GitHub Releases. It also runs the Linux unit suite under ASan and UBSan.
 
 ## License
 
@@ -225,5 +252,5 @@ See [`COPYING`](COPYING).
 ## Authors
 
 SACD Ripper was created and maintained by its respective upstream authors.
-Gabriel Max `<dev@zetta.app>` is a co-author of the host-native PC/Linux
+Gabriel Max `<dev@zetta.app>` is a co-author of the host-native desktop
 extractor work (2026).

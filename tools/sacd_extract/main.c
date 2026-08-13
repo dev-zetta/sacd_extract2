@@ -1074,11 +1074,11 @@ int main(int argc, char *argv[])
 
 #if defined(WIN32) || defined(_WIN32)
     char **argvw_utf8 = convert_wargv_to_UTF8(argc,wargv);
-    if (parse_options(argc, argvw_utf8))
+    parse_result = parse_options(argc, argvw_utf8);
 #else
     parse_result = parse_options(argc, argv);
-    if (parse_result > 0)
 #endif
+    if (parse_result > 0)
     {
         setlocale(LC_ALL, "");
         if (fwide(stdout, 1) < 0)

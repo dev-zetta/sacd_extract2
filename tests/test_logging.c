@@ -6,6 +6,15 @@
 #include "unity.h"
 #include "logging.h"
 
+static int make_directory(const char *path)
+{
+#if defined(_WIN32)
+    return mkdir(path);
+#else
+    return mkdir(path, 0700);
+#endif
+}
+
 static char log_path[256];
 
 static int fixed_time(struct timespec *now)
@@ -17,7 +26,7 @@ static int fixed_time(struct timespec *now)
 
 void setUp(void)
 {
-    snprintf(log_path, sizeof(log_path), "/tmp/sacd-extract-log-test-%ld.log", (long)getpid());
+    snprintf(log_path, sizeof(log_path), "sacd-extract-log-test-%ld.log", (long)getpid());
     unlink(log_path);
 }
 
@@ -69,9 +78,9 @@ static void test_generated_session_names_are_unique(void)
     char directory[256];
     char first[512];
     char second[512];
-    snprintf(directory, sizeof(directory), "/tmp/sacd-extract-log-dir-%ld", (long)getpid());
+    snprintf(directory, sizeof(directory), "sacd-extract-log-dir-%ld", (long)getpid());
     rmdir(directory);
-    TEST_ASSERT_EQUAL_INT(0, mkdir(directory, 0700));
+    TEST_ASSERT_EQUAL_INT(0, make_directory(directory));
 
     init_logging(1, LOG_INFO, NULL);
     TEST_ASSERT_EQUAL_INT(0, logging_open_session(directory));

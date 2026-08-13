@@ -9,7 +9,7 @@ static char path[256];
 
 void setUp(void)
 {
-    snprintf(path, sizeof(path), "/tmp/sacd-xml-writer-%ld.xml", (long)getpid());
+    snprintf(path, sizeof(path), "sacd-xml-writer-%ld.xml", (long)getpid());
     unlink(path);
 }
 

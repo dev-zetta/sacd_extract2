@@ -1,4 +1,4 @@
-name: Linux build
+name: Build
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
         run: |
           mkdir -p build/package/sacd_extract
           install -m 0755 build/release/sacd_extract build/package/sacd_extract/
-          install -m 0644 README.md COPYING tools/sacd_extract/changelog build/package/sacd_extract/
+          install -m 0644 README.md CHANGELOG.md COPYING build/package/sacd_extract/
           tar -C build/package -czf build/sacd_extract-linux-x86_64.tar.gz sacd_extract
           cd build
           sha256sum sacd_extract-linux-x86_64.tar.gz > sacd_extract-linux-x86_64.tar.gz.sha256
@@ -60,6 +60,71 @@ jobs:
           path: |
             build/sacd_extract-linux-x86_64.tar.gz
             build/sacd_extract-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install MinGW-w64 build environment
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-libiconv
+
+      - name: Configure
+        run: >-
+          cmake -S tools/sacd_extract -B build/release -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSACD_WINDOWS_STATIC=ON
+
+      - name: Build
+        run: cmake --build build/release --parallel
+
+      - name: Unit and smoke tests
+        run: |
+          ctest --test-dir build/release --output-on-failure
+          build/release/sacd_extract.exe --version
+          build/release/sacd_extract.exe --help
+
+      - name: Verify portable executable
+        run: |
+          objdump -p build/release/sacd_extract.exe > build/windows-imports.txt
+          if grep -Ei 'DLL Name: (libiconv|libintl|libwinpthread|libgcc)' build/windows-imports.txt; then
+            echo "Unexpected MinGW runtime dependency"
+            exit 1
+          fi
+
+      - name: Package executable
+        run: |
+          mkdir -p build/package/sacd_extract
+          cp build/release/sacd_extract.exe build/package/sacd_extract/
+          cp README.md CHANGELOG.md COPYING build/package/sacd_extract/
+          cd build/package
+          cmake -E tar cf ../sacd_extract-windows-x86_64.zip --format=zip sacd_extract
+          cd ..
+          sha256sum sacd_extract-windows-x86_64.zip > sacd_extract-windows-x86_64.zip.sha256
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: sacd_extract-windows-x86_64
+          path: |
+            build/sacd_extract-windows-x86_64.zip
+            build/sacd_extract-windows-x86_64.zip.sha256
           if-no-files-found: error
 
   sanitizers:
@@ -95,6 +160,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs:
       - build
+      - windows
       - sanitizers
     runs-on: ubuntu-22.04
 
@@ -108,6 +174,12 @@ jobs:
           name: sacd_extract-linux-x86_64
           path: build
 
+      - name: Download tested Windows executable
+        uses: actions/download-artifact@v8
+        with:
+          name: sacd_extract-windows-x86_64
+          path: build
+
       - name: Attach tested binary to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,10 +187,14 @@ jobs:
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" \
               build/sacd_extract-linux-x86_64.tar.gz \
-              build/sacd_extract-linux-x86_64.tar.gz.sha256 --clobber
+              build/sacd_extract-linux-x86_64.tar.gz.sha256 \
+              build/sacd_extract-windows-x86_64.zip \
+              build/sacd_extract-windows-x86_64.zip.sha256 --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               build/sacd_extract-linux-x86_64.tar.gz \
               build/sacd_extract-linux-x86_64.tar.gz.sha256 \
+              build/sacd_extract-windows-x86_64.zip \
+              build/sacd_extract-windows-x86_64.zip.sha256 \
               --verify-tag --generate-notes --title "sacd_extract ${GITHUB_REF_NAME#v}"
           fi

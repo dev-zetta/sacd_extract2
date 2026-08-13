@@ -3,7 +3,22 @@
 All notable changes made in the `sacd_extract2` fork are documented here. The
 six versioned fork commits preceding this changelog are accounted for below.
 Earlier project history remains available in the
-[legacy changelog](tools/sacd_extract/changelog).
+[legacy changelog](archive/changelog).
+
+## [0.4.4] - 2026-08-13
+
+### Added
+
+- Add a CMake-based 64-bit Windows build using MinGW-w64 and MSYS2.
+- Build, test, package, checksum, and publish a self-contained Windows
+  executable through GitHub Actions alongside the Linux artifact.
+
+### Changed
+
+- Archive the restored pre-fork changelog and legacy `readme.txt` under
+  `archive/`.
+- Remove the obsolete Visual Studio solution/project, compatibility headers,
+  and manual Windows dependency-build instructions.
 
 ## [0.4.3] - 2026-08-13
 
@@ -87,3 +102,4 @@ Commits:
 [0.4.2]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dev-zetta/sacd_extract2/compare/c9af7d4...v0.4.0
+[0.4.4]: https://github.com/dev-zetta/sacd_extract2/compare/v0.4.3...v0.4.4

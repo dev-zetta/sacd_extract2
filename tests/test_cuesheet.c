@@ -44,7 +44,7 @@ static void test_synthetic_metadata_produces_deterministic_cue(void)
     times.start[1].minutes = 3;
     times.start[1].seconds = 1;
 
-    snprintf(path, sizeof(path), "/tmp/sacd-cue-test-%ld.cue", (long)getpid());
+    snprintf(path, sizeof(path), "sacd-cue-test-%ld.cue", (long)getpid());
     unlink(path);
     TEST_ASSERT_EQUAL_INT(0, write_cue_sheet(&handle, "Test Album.dff", 0, path));
     file = fopen(path, "rb");
@@ -92,7 +92,7 @@ static void test_track_file_cue_references_actual_dsf_files(void)
     times.start[0].seconds = 2;
     times.start[1].minutes = 3;
 
-    snprintf(path, sizeof(path), "/tmp/sacd-track-cue-test-%ld.cue", (long)getpid());
+    snprintf(path, sizeof(path), "sacd-track-cue-test-%ld.cue", (long)getpid());
     unlink(path);
     TEST_ASSERT_EQUAL_INT(0, write_track_cue_sheet(&handle, "dsf", 0, path, NULL));
     file = fopen(path, "rb");
