@@ -7,6 +7,14 @@ Earlier project history remains available in the
 
 ## [Unreleased]
 
+### Changed
+
+- Move detailed Linux/Windows build, packaging, test, sanitizer, integration,
+  and CI instructions from the main README into focused guides under `docs/`.
+- Archive the historical DSDIFF, DSF, and Sony DSD format specification PDFs.
+- Ignore the repository-local `work/` directory reserved for SACD images and
+  extracted validation samples.
+
 ## [0.5.0] - 2026-08-13
 
 ### Changed

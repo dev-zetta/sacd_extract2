@@ -26,7 +26,7 @@ to replace the damaged DSF.
 
 The header, chunk sizes, sample count, 4,096-byte channel block size, data
 length, metadata offset, and ID3v2.3 footer are mutually consistent with the
-[Sony DSF specification](DSF_file_format_specification_E.pdf).
+[Sony DSF specification](../archive/DSF_file_format_specification_E.pdf).
 
 ## Corrupt regions
 

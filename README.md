@@ -39,13 +39,6 @@ and CUE export.
 
 Release GUI archives are self-contained: the Actions workflow builds the CLI
 first and embeds that tested host-platform executable in the Electron package.
-To run the GUI from source after building the CLI:
-
-```bash
-npm ci --prefix gui
-npm --prefix gui test
-npm --prefix gui start
-```
 
 Set `SACD_EXTRACT_PATH=/absolute/path/to/sacd_extract` if the executable is not
 under `build/linux`, `build/windows`, the legacy build directories, the GUI
@@ -53,65 +46,17 @@ directory, or `PATH`. See
 the [GUI documentation](gui/README.md) for packaging details and retained
 upstream provenance.
 
-## Build on Linux
+## Build and test
 
-Install a C compiler and CMake 3.16 or newer. XML export uses the bundled
-write-only implementation and has no libxml2 dependency. Building the GUI also
-requires Node.js 22 or newer and npm.
-For Debian and Ubuntu:
-
-```bash
-sudo apt-get update
-sudo apt-get install build-essential cmake git
-```
-
-The shared build script detects the current host, checks dependencies, selects
-the appropriate CMake generator and static Windows settings, then builds and
-runs both the C and GUI tests:
-
-```bash
-git clone https://github.com/dev-zetta/sacd_extract2.git
-cd sacd_extract2
-scripts/build.sh
-```
-
-The executable is written to `build/linux/sacd_extract`. To also create the CLI
-and ready-to-run GUI release archives under `build/dist`, run:
-
-```bash
-scripts/build.sh --package
-```
-
-[Tagged releases](https://github.com/dev-zetta/sacd_extract2/releases) provide
-ready-to-run Linux and Windows x86-64 archives with matching SHA-256 checksums.
-The packaged executables do not depend on libxml2; the Linux binary only needs
-the standard C runtime, and the Windows binary statically includes its MinGW
-and libiconv dependencies.
-
-## Build on Windows
-
-The supported Windows build uses 64-bit MinGW-w64 from MSYS2 rather than the
-removed legacy Visual Studio project. Install MSYS2, open its **MINGW64** shell,
-and install the toolchain:
-
-```bash
-pacman -Syu
-pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
-  mingw-w64-x86_64-ninja mingw-w64-x86_64-libiconv
-```
-
-After restarting the MINGW64 shell if the MSYS2 update requests it, use the same
-entry point from the repository root:
+Linux and Windows use the same dependency-checking build entry point:
 
 ```bash
 scripts/build.sh
-scripts/build.sh --package
 ```
 
-The script recognizes the MSYS2 MINGW64 environment and automatically enables
-`SACD_WINDOWS_STATIC`, folding the non-system MinGW, pthread, and iconv
-libraries into `sacd_extract.exe`. Use `scripts/build.sh --help` for explicit
-platform, build-directory, build-type, sanitizer, and GUI options.
+See the [building guide](docs/building.md) for platform dependencies, build
+options, and packaging. See the [testing guide](docs/testing.md) for CTest, GUI,
+sanitizer, optional SACD ISO integration, and CI details.
 
 ## Usage
 
@@ -232,50 +177,12 @@ Exit statuses are `0` for clean output, `1` for completed partial/abandoned
 tracks, `2` for invalid input or another fatal failure, and `130` when the user
 interrupts extraction.
 
-## Tests
-
-Unity 2.6.1 is vendored under `tests/vendor/unity`, so unit tests do not fetch
-dependencies. Build and run them with:
-
-```bash
-cmake -S src -B build/tests \
-  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
-cmake --build build/tests --parallel
-ctest --test-dir build/tests --output-on-failure
-```
-
-To add read-only integration checks using a local SACD image, configure with:
-
-```bash
-cmake -S src -B build/integration \
-  -DBUILD_TESTING=ON -DSACD_TEST_ISO="/path/to/Album.iso"
-cmake --build build/integration --parallel
-ctest --test-dir build/integration -L integration --output-on-failure
-```
-
-The image is referenced in place and is never copied into the build or test
-artifacts. The integration set parses metadata, generates CUE/XML metadata, and
-extracts the first stereo DSF track.
-
 ## Output integrity
 
 Extracted files should be decoded or checksummed before the source image is
 discarded. The investigation and fix for the former intermittent 1 MiB DSF
 corruption issue is documented in
 [`docs/dsf-output-corruption-investigation.md`](docs/dsf-output-corruption-investigation.md).
-
-## Continuous integration
-
-The GitHub Actions workflow builds and tests Release configurations on Ubuntu
-22.04 and Windows, checks that the packaged CLI binaries do not depend on libxml
-or MinGW runtime DLLs, runs the GUI adapter tests and syntax checks, and packages
-the GUI with the tested extractor. Tagged GitHub Releases receive both CLI and
-ready-to-run GUI archives with checksums. The workflow also runs the Linux C
-unit suite under ASan and UBSan.
-All three jobs call [`scripts/build.sh`](scripts/build.sh), keeping local and CI
-configuration, testing, portability checks, and packaging on the same path.
-Tag workflows reuse the artifacts already tested for that commit instead of
-performing a second Linux and Windows build.
 
 ## License
 
