@@ -30,7 +30,10 @@ test('prefers an explicit extractor path', () => {
     appDirectory: '/repository/gui/src',
     environment: {
       SACD_EXTRACT_PATH: '/custom/sacd_extract',
-      PATH: '/usr/local/bin:/usr/bin',
+      PATH: [
+        '/usr/local/bin',
+        '/usr/bin',
+      ].join(path.delimiter),
     },
   });
 
@@ -49,7 +52,9 @@ test('prefers an explicit extractor path', () => {
     ))
   );
   assert.ok(
-    candidates.includes('/usr/bin/sacd_extract')
+    candidates.includes(
+      path.join('/usr/bin', 'sacd_extract')
+    )
   );
 });
 
